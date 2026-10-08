@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Download, ChevronLeft, ChevronRight, Crop } from 'lucide-react';
+import { Download, ChevronLeft, ChevronRight, Crop, Undo2, Redo2 } from 'lucide-react';
 import { useEditorContext } from '../../context/EditorContext';
 import CropModal from './CropModal';
 import type { ImageSetting } from '../../types';
@@ -17,12 +17,14 @@ export default function CanvasPreview() {
     watermarkColor, watermarkFontFamily, watermarkFontWeight, watermarkFontStyle,
     watermarkTextDecoration, watermarkTextTransform, watermarkLetterSpacing,
     watermarkCustomAngle, watermarkIsGrid, watermarkGridSpacing,
-    selectedShowroom
+    brightness, contrast, saturation, warmth,
+    selectedShowroom,
+    canUndo, canRedo, undo, redo, recordSnapshot,
+    activeElement, setActiveElement
   } = useEditorContext();
 
   const [downloadFormat, setDownloadFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
   const [renderedWidth, setRenderedWidth] = useState(1000);
-  const [activeElement, setActiveElement] = useState<'logo' | 'number' | 'watermark' | null>(null);
   const [localDragPos, setLocalDragPos] = useState<{ x: number, y: number } | null>(null);
   const dragPosRef = useRef<{ x: number, y: number } | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
@@ -159,12 +161,12 @@ export default function CanvasPreview() {
   }, [previewUrls, previewIndex]);
 
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-  useEffect(() => {
-    if (!previewUrls[previewIndex]) return;
-    const img = new Image();
-    img.onload = () => setAspectRatio(img.naturalWidth / img.naturalHeight);
-    img.src = previewUrls[previewIndex];
-  }, [previewUrls, previewIndex]);
+  const handlePreviewImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth && img.naturalHeight) {
+      setAspectRatio(img.naturalWidth / img.naturalHeight);
+    }
+  };
 
   useEffect(() => {
     document.fonts.ready.then(() => {
@@ -179,6 +181,7 @@ export default function CanvasPreview() {
 
     if (e.key === '+' || e.key === '=' || e.key === '-') {
       e.preventDefault();
+      recordSnapshot();
       const resizeStep = e.key === '-' ? (e.shiftKey ? -5 : -1) : (e.shiftKey ? 5 : 1);
 
       if (activeElement === 'logo') {
@@ -197,6 +200,7 @@ export default function CanvasPreview() {
 
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
       e.preventDefault();
+      recordSnapshot();
       const key = `${activeElement}Pos` as keyof ImageSetting;
       const currentPos = { ...(imageSettings[previewIndex][key] as { x: number, y: number }) };
 
@@ -218,6 +222,7 @@ export default function CanvasPreview() {
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent, type: 'logo' | 'number' | 'watermark') => {
     e.preventDefault();
     e.stopPropagation(); // Prevent click-outside from firing
+    recordSnapshot();
     setActiveElement(type);
     if (containerRef.current) containerRef.current.focus();
 
@@ -460,7 +465,12 @@ export default function CanvasPreview() {
         canvas.width = mainImg.width;
         canvas.height = mainImg.height;
 
-        ctx.filter = `brightness(${currentSetting.brightness ?? 100}%) contrast(${currentSetting.contrast ?? 100}%) saturate(${currentSetting.saturation ?? 100}%) sepia(${currentSetting.warmth ?? 0}%)`;
+        const effBrightness = currentSetting.brightness ?? brightness ?? 100;
+        const effContrast = currentSetting.contrast ?? contrast ?? 100;
+        const effSaturation = currentSetting.saturation ?? saturation ?? 100;
+        const effWarmth = currentSetting.warmth ?? warmth ?? 0;
+
+        ctx.filter = `brightness(${effBrightness}%) contrast(${effContrast}%) saturate(${effSaturation}%) sepia(${effWarmth}%)`;
         ctx.drawImage(mainImg, 0, 0);
         ctx.filter = 'none';
 
@@ -568,7 +578,6 @@ export default function CanvasPreview() {
     }
   };
 
-  if (mainImages.length === 0) return null;
 
   return (
     <div className="flex-1 lg:h-full flex flex-col z-10 w-full overflow-hidden mt-6 lg:mt-0">
@@ -594,6 +603,31 @@ export default function CanvasPreview() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            {/* Undo / Redo Control Pill */}
+            <div className="flex items-center self-start sm:self-auto bg-white/80 p-1 rounded-2xl border border-gray-200/80 shadow-sm backdrop-blur-sm">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-not-allowed transition-all active:scale-95"
+                title="পূর্বাবস্থায় ফিরুন (Ctrl+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">আনডু</span>
+              </button>
+              <div className="w-[1px] h-4 bg-gray-200" />
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!canRedo}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-not-allowed transition-all active:scale-95"
+                title="পুনরায় করুন (Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">রিডু</span>
+              </button>
+            </div>
+
             <select
               value={downloadFormat}
               onChange={(e) => setDownloadFormat(e.target.value as 'jpeg' | 'png' | 'webp')}
@@ -605,8 +639,8 @@ export default function CanvasPreview() {
             </select>
             <button
               onClick={downloadAll}
-              disabled={isProcessing}
-              className="relative flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 disabled:opacity-50 text-white font-semibold text-sm rounded-xl transition-all shadow-[0_4px_14px_rgba(0,113,227,0.35)] hover:shadow-[0_6px_20px_rgba(0,113,227,0.5)] hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 overflow-hidden group whitespace-nowrap"
+              disabled={isProcessing || previewUrls.length === 0}
+              className="relative flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl transition-all shadow-[0_4px_14px_rgba(0,113,227,0.35)] hover:shadow-[0_6px_20px_rgba(0,113,227,0.5)] hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 overflow-hidden group whitespace-nowrap"
             >
               <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Download className="w-4 h-4 shrink-0" strokeWidth={2.5} />
@@ -616,10 +650,10 @@ export default function CanvasPreview() {
         </div>
 
         {/* Preview Area */}
-        <div className="flex-1 bg-gradient-to-br from-gray-100/80 to-slate-100/60 rounded-[28px] border border-gray-200/60 flex flex-col items-center justify-center relative shadow-[inset_0_2px_12px_rgba(0,0,0,0.05)] h-full min-h-[400px] overflow-hidden">
+        <div className="flex-1 bg-gradient-to-br from-gray-50/90 to-slate-100/80 rounded-[28px] border border-gray-200/60 flex flex-col items-center justify-center relative shadow-[inset_0_2px_12px_rgba(0,0,0,0.03)] h-full min-h-[400px] overflow-hidden">
 
           {/* Grid pattern background */}
-          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #6366f1 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #4f46e5 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
 
           {/* Floating Crop Button */}
           {previewUrls.length > 0 && (
@@ -632,7 +666,26 @@ export default function CanvasPreview() {
             </button>
           )}
 
-          {previewUrls.length > 0 && currentSetting ? (
+          {previewUrls.length === 0 ? (
+            <div className="relative z-10 flex flex-col items-center justify-center text-center p-8 animate-in fade-in duration-500 zoom-in-95">
+              <div className="w-24 h-24 mb-6 relative">
+                <div className="absolute inset-0 bg-blue-100/50 rounded-full blur-xl animate-pulse" />
+                <div className="relative w-full h-full bg-white border border-gray-100 shadow-xl rounded-3xl flex items-center justify-center rotate-3 hover:rotate-0 transition-transform duration-300">
+                  <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">স্টুডিও এখন ফাঁকা</h3>
+              <p className="text-sm text-gray-500 max-w-sm mb-6 leading-relaxed">
+                বাম পাশের প্যানেল থেকে আপনার ফার্নিচারের ছবি আপলোড করুন অথবা ড্র্যাগ-অ্যান্ড-ড্রপ করুন।
+              </p>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white/60 border border-gray-200 rounded-xl text-xs font-medium text-gray-600">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                হাই-কোয়ালিটি প্রসেসিং রেডি
+              </div>
+            </div>
+          ) : currentSetting ? (
             <div className="flex flex-col items-center w-full h-full relative">
               
               {/* Zoom Controls Overlay */}
@@ -695,8 +748,11 @@ export default function CanvasPreview() {
                     ref={previewImageRef}
                     src={previewUrls[previewIndex]}
                     alt="Preview"
+                    onLoad={handlePreviewImageLoad}
                     className="w-full h-full object-cover block pointer-events-none transition-all"
-                    style={{ filter: `brightness(${currentSetting?.brightness ?? 100}%) contrast(${currentSetting?.contrast ?? 100}%) saturate(${currentSetting?.saturation ?? 100}%) sepia(${currentSetting?.warmth ?? 0}%)` }}
+                    style={{
+                      filter: `brightness(${currentSetting?.brightness ?? brightness ?? 100}%) contrast(${currentSetting?.contrast ?? contrast ?? 100}%) saturate(${currentSetting?.saturation ?? saturation ?? 100}%) sepia(${currentSetting?.warmth ?? warmth ?? 0}%)`
+                    }}
                     draggable={false}
                   />
 
@@ -733,7 +789,10 @@ export default function CanvasPreview() {
                       }}
                       onMouseDown={(e) => handleDragStart(e, 'watermark')}
                       onTouchStart={(e) => handleDragStart(e, 'watermark')}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveElement('watermark');
+                      }}
                     >
                       {(() => {
                         const wStyle = currentSetting?.watermarkStyle ?? watermarkStyle;
@@ -766,11 +825,13 @@ export default function CanvasPreview() {
                   {/* DOM Number Preview Layer */}
                   {(currentSetting?.numberText ?? numberText) && (
                     <div
-                      className={`absolute cursor-move pointer-events-auto rounded transition-all ${activeElement === 'number' ? 'ring-2 ring-blue-500 border border-dashed border-blue-400' : 'hover:ring-2 hover:ring-blue-500'}`}
+                      className={`absolute cursor-move pointer-events-auto rounded ${activeElement === 'number' ? 'ring-2 ring-blue-500 border border-dashed border-blue-400' : 'hover:ring-2 hover:ring-blue-500'}`}
                       style={{
                         left: `${(activeElement === 'number' && localDragPos) ? localDragPos.x : currentSetting.numberPos.x}%`,
                         top: `${(activeElement === 'number' && localDragPos) ? localDragPos.y : currentSetting.numberPos.y}%`,
-                        transform: 'translate(-50%, -50%)',
+                        transform: 'translate3d(-50%, -50%, 0)',
+                        willChange: (activeElement === 'number' && localDragPos) ? 'left, top, transform' : 'auto',
+                        transition: (activeElement === 'number' && localDragPos) ? 'none' : 'box-shadow 0.15s ease',
                         backgroundColor: (currentSetting?.numberStyle ?? numberStyle) === 'solid' ? (currentSetting?.numberBgColor ?? numberBgColor) : 'transparent',
                         border: 'none',
                         color: (currentSetting?.numberStyle ?? numberStyle) === 'transparent' ? (currentSetting?.numberBgColor ?? numberBgColor) : (currentSetting?.numberColor ?? numberColor),
@@ -798,7 +859,10 @@ export default function CanvasPreview() {
                       }}
                       onMouseDown={(e) => handleDragStart(e, 'number')}
                       onTouchStart={(e) => handleDragStart(e, 'number')}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveElement('number');
+                      }}
                     >
                       {(currentSetting?.numberText ?? numberText).split('\n').map((line, i, arr) => (
                         <div key={i} style={{ marginBottom: i === arr.length - 1 ? 0 : '0.1em' }}>
@@ -811,11 +875,13 @@ export default function CanvasPreview() {
                   {/* DOM Logo Preview Layer */}
                   {(currentSetting?.logoUrl || logoUrl) && (
                     <div
-                      className={`absolute cursor-move pointer-events-auto rounded transition-all ${activeElement === 'logo' ? 'ring-2 ring-blue-500 border border-dashed border-blue-400' : 'hover:ring-2 hover:ring-blue-500'}`}
+                      className={`absolute cursor-move pointer-events-auto rounded ${activeElement === 'logo' ? 'ring-2 ring-blue-500 border border-dashed border-blue-400' : 'hover:ring-2 hover:ring-blue-500'}`}
                       style={{
                         left: `${(activeElement === 'logo' && localDragPos) ? localDragPos.x : currentSetting.logoPos.x}%`,
                         top: `${(activeElement === 'logo' && localDragPos) ? localDragPos.y : currentSetting.logoPos.y}%`,
-                        transform: 'translate(-50%, -50%)',
+                        transform: 'translate3d(-50%, -50%, 0)',
+                        willChange: (activeElement === 'logo' && localDragPos) ? 'left, top, transform' : 'auto',
+                        transition: (activeElement === 'logo' && localDragPos) ? 'none' : 'box-shadow 0.15s ease',
                         width: `${currentSetting?.logoSize ?? logoSize}%`,
                         filter: (currentSetting?.enableLogoShadow ?? enableLogoShadow) 
                           ? Array.from({ length: currentSetting?.logoShadowIntensity ?? logoShadowIntensity }).map(() => `drop-shadow(0 0 ${(currentSetting?.logoShadowBlur ?? logoShadowBlur) * (renderedWidth / 1000)}px ${currentSetting?.logoShadowColor ?? logoShadowColor})`).join(' ')
@@ -824,7 +890,10 @@ export default function CanvasPreview() {
                       }}
                       onMouseDown={(e) => handleDragStart(e, 'logo')}
                       onTouchStart={(e) => handleDragStart(e, 'logo')}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveElement('logo');
+                      }}
                     >
                       <img
                         src={currentSetting.logoUrl || logoUrl!}

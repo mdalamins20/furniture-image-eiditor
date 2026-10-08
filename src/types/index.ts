@@ -34,6 +34,7 @@ export interface ImageSetting {
   numberOutlineThickness?: number;
   numberOutlineBlur?: number;
   enableWatermark?: boolean;
+  watermarkText?: string;
   watermarkStyle?: 'diagonal' | 'grid' | 'horizontal' | 'custom';
   watermarkOpacity?: number;
   watermarkSize?: number;
@@ -47,6 +48,55 @@ export interface ImageSetting {
   watermarkCustomAngle?: number;
   watermarkIsGrid?: boolean;
   watermarkGridSpacing?: number;
+}
+
+export interface EditorSnapshot {
+  imageSettings: ImageSetting[];
+  globalState: {
+    selectedShowroom: string;
+    logoUrl: string | null;
+    numberText: string;
+    fontFamily: string;
+    logoSize: number;
+    enableLogoShadow: boolean;
+    logoShadowColor: string;
+    logoShadowBlur: number;
+    logoShadowIntensity: number;
+    numberColor: string;
+    numberBgColor: string;
+    numberSize: number;
+    letterSpacing: number;
+    lineHeight: number;
+    fontWeight: 'normal' | 'bold';
+    fontStyle: 'normal' | 'italic';
+    textDecoration: 'none' | 'underline' | 'line-through';
+    textTransform: 'none' | 'uppercase' | 'lowercase';
+    padX: number;
+    padY: number;
+    customRadius: number;
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    warmth: number;
+    numberStyle: 'solid' | 'transparent' | 'outline';
+    numberOutlineThickness: number;
+    numberOutlineBlur: number;
+    enableWatermark: boolean;
+    watermarkText: string;
+    watermarkStyle: 'diagonal' | 'grid' | 'horizontal' | 'custom';
+    watermarkOpacity: number;
+    watermarkSize: number;
+    watermarkColor: string;
+    watermarkFontFamily: string;
+    watermarkFontWeight: 'normal' | 'bold';
+    watermarkFontStyle: 'normal' | 'italic';
+    watermarkTextDecoration: 'none' | 'underline' | 'line-through';
+    watermarkTextTransform: 'none' | 'uppercase' | 'lowercase';
+    watermarkLetterSpacing: number;
+    watermarkCustomAngle: number;
+    watermarkIsGrid: boolean;
+    watermarkGridSpacing: number;
+  };
 }
 
 export const SHOWROOMS = [

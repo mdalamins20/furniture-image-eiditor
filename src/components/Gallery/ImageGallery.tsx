@@ -1,8 +1,9 @@
+import React from 'react';
 import { X } from 'lucide-react';
 import { useEditorContext } from '../../context/EditorContext';
 import type { ImageSetting } from '../../types';
 
-function Thumbnail({ imageUrl, setting }: { imageUrl: string; setting: ImageSetting | undefined }) {
+const Thumbnail = React.memo(function Thumbnail({ imageUrl, setting }: { imageUrl: string; setting: ImageSetting | undefined }) {
   const br = setting?.brightness ?? 100;
   const co = setting?.contrast ?? 100;
   const sa = setting?.saturation ?? 100;
@@ -17,9 +18,10 @@ function Thumbnail({ imageUrl, setting }: { imageUrl: string; setting: ImageSett
       }}
       draggable={false}
       alt="Thumbnail"
+      loading="lazy"
     />
   );
-}
+});
 
 export default function ImageGallery() {
   const {
@@ -31,13 +33,13 @@ export default function ImageGallery() {
   if (mainImages.length === 0) return null;
 
   return (
-    <div className="w-full lg:w-[130px] xl:w-[155px] flex-shrink-0 flex flex-col h-full gap-4 mt-6 lg:mt-0">
-      <div className="bg-white/70 backdrop-blur-2xl p-3 rounded-2xl shadow-sm border border-white/40 flex-1 flex flex-col h-full overflow-hidden">
-        <div className="text-xs font-semibold text-gray-500 mb-3 text-center uppercase tracking-wider">
+    <div className="w-full lg:w-[130px] xl:w-[155px] flex-shrink-0 flex flex-col h-full mt-6 lg:mt-0">
+      <div className="bg-white/60 backdrop-blur-xl p-3 rounded-[36px] shadow-[0_24px_64px_-12px_rgba(0,0,0,0.05)] border border-white/50 flex-1 flex flex-col h-full overflow-hidden">
+        <div className="text-[11px] font-bold text-gray-800 mb-3 text-center uppercase tracking-widest pt-2">
           গ্যালারি ({mainImages.length})
         </div>
         
-        <div className="flex-1 overflow-y-auto space-y-2 pr-0.5 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto space-y-2.5 px-1 custom-scrollbar">
           {mainImages.map((_file, idx) => {
             const isSelected = selectedIndices.has(idx);
             const isPreview = previewIndex === idx;
@@ -72,7 +74,7 @@ export default function ImageGallery() {
                 <div className="aspect-square overflow-hidden bg-gray-100 rounded-[10px]">
                   {previewUrl ? (
                     <Thumbnail
-                      key={`${idx}-${setting?.brightness}-${setting?.contrast}-${setting?.saturation}`}
+                      key={`${idx}-${setting?.brightness}-${setting?.contrast}-${setting?.saturation}-${setting?.warmth}`}
                       imageUrl={previewUrl}
                       setting={setting}
                     />
