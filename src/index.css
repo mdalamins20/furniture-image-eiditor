@@ -11,6 +11,16 @@
   --color-border: rgba(0, 0, 0, 0.08);
   --color-text-main: #1d1d1f;
   --color-text-muted: #86868b;
+
+  /* Furniture brand tokens (walnut / teak gold / cream) for future UI work.
+     Existing screens still use their own colours; new components should
+     use these tokens instead of inventing another palette. */
+  --color-walnut: #7A4A1F;
+  --color-walnut-dark: #5C3715;
+  --color-teak: #D97706;
+  --color-teak-light: #FBBF24;
+  --color-cream: #FAF6EF;
+  --color-charcoal: #1D1D1F;
   
   /* Unify the entire blue theme around Apple's #0071e3 */
   --color-blue-400: #1a87f5;

@@ -16,6 +16,7 @@ export default function CropModal({ imageUrl, onClose, onSave }: CropModalProps)
   const [aspect, setAspect] = useState<number | undefined>(undefined);
   const imageRef = useRef<HTMLImageElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cropError, setCropError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -28,9 +29,11 @@ export default function CropModal({ imageUrl, onClose, onSave }: CropModalProps)
 
   const handleSave = async () => {
     if (!completedCrop || !imageRef.current || completedCrop.width === 0 || completedCrop.height === 0) {
-      onClose();
+      // Previously this silently closed the modal with no feedback.
+      setCropError('প্রথমে একটি ক্রপ এলাকা বেছে নিন, তারপর সেভ করুন।');
       return;
     }
+    setCropError(null);
 
     setIsProcessing(true);
     try {
@@ -194,6 +197,9 @@ export default function CropModal({ imageUrl, onClose, onSave }: CropModalProps)
           </button>
         </div>
 
+        {cropError && (
+          <p className="text-xs font-medium text-red-400 w-full sm:w-auto">{cropError}</p>
+        )}
         {/* Actions */}
         <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 justify-end mt-2 sm:mt-0">
           <button

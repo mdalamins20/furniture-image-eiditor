@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import ErrorBoundary from './components/Common/ErrorBoundary';
+import { ToastProvider } from './components/Common/ToastContext';
 import AppHeader from './components/Header/AppHeader';
 import AppHub from './components/Hub/AppHub';
 // Lazy-loaded: previously every module was bundled into one 1.2 MB chunk.
@@ -94,8 +95,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ToastProvider>
   );
 }

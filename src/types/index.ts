@@ -97,6 +97,11 @@ export interface EditorSnapshot {
     watermarkCustomAngle: number;
     watermarkIsGrid: boolean;
     watermarkGridSpacing: number;
+    // Optional so old snapshots (without these fields) still restore.
+    defaultLogoPos?: { x: number; y: number };
+    defaultNumberPos?: { x: number; y: number };
+    defaultWatermarkPos?: { x: number; y: number };
+    downloadFormat?: 'jpeg' | 'png' | 'webp';
   };
 }
 
@@ -138,13 +143,9 @@ export interface ShowroomItem {
 export const SHOWROOMS: ShowroomItem[] = [];
 
 export const FONTS = [
-  // User Requested Custom Fonts (With Exact Names + High-Quality Google Font Fallbacks)
-  { name: 'Kalpurush', family: '"Kalpurush", "Hind Siliguri", sans-serif' },
-  { name: 'Century', family: '"Century", "PT Serif", serif' },
-  { name: 'Cambria', family: '"Cambria", "Lora", serif' },
-  { name: 'Acumin Variable Concept', family: '"Acumin Variable Concept", "Inter", sans-serif' },
-  { name: 'Amerigo BT', family: '"Amerigo BT", "Merriweather", serif' },
-  { name: 'Arrus Blk BT', family: '"Arrus Blk BT", "Playfair Display", serif' },
+  // Only fonts actually loaded in index.html are listed here. The old
+  // list included Kalpurush, Century, Cambria, Acumin, Amerigo and Arrus,
+  // none of which are loaded, so picking them silently fell back.
   
   // High-Quality Bengali Fonts (Google Fonts)
   { name: 'Hind Siliguri', family: '"Hind Siliguri", sans-serif' },

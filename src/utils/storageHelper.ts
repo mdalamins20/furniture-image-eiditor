@@ -163,6 +163,15 @@ export async function getLargeAsset(key: string): Promise<string | null> {
 /**
  * Load persisted configuration synchronously from localStorage with fallback migration
  */
+function isValidField(key: keyof PersistedConfig, value: unknown): boolean {
+  const def = DEFAULT_CONFIG[key];
+  if (typeof def === 'object' && def !== null) {
+    const v = value as { x?: unknown; y?: unknown } | null;
+    return v !== null && typeof v === 'object' && typeof v.x === 'number' && typeof v.y === 'number';
+  }
+  return typeof value === typeof def;
+}
+
 export function loadPersistedConfig(): PersistedConfig {
   if (typeof window === 'undefined') return { ...DEFAULT_CONFIG };
 
@@ -170,9 +179,20 @@ export function loadPersistedConfig(): PersistedConfig {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { ...DEFAULT_CONFIG };
+      }
+      // Only keep fields whose shape matches the default; a corrupted or
+      // hand-edited entry must not poison the whole config.
+      const clean: Partial<PersistedConfig> = {};
+      for (const key of Object.keys(DEFAULT_CONFIG) as (keyof PersistedConfig)[]) {
+        if (key in parsed && isValidField(key, parsed[key])) {
+          (clean as Record<string, unknown>)[key] = parsed[key];
+        }
+      }
       return {
         ...DEFAULT_CONFIG,
-        ...parsed,
+        ...clean,
       };
     }
 
@@ -220,16 +240,22 @@ export function loadPersistedConfig(): PersistedConfig {
 /**
  * Save configuration safely without crashing on quota limits
  */
-export function savePersistedConfig(config: PersistedConfig): boolean {
+export async function savePersistedConfig(config: PersistedConfig): Promise<boolean> {
   if (typeof window === 'undefined') return false;
 
   try {
     const toSave: any = { ...config };
 
     // If logoUrl is a huge data URL (base64 > 50KB), offload to IndexedDB
+    // and WAIT for it before replacing the URL with the marker. The old
+    // code fired the write without awaiting, so closing the tab first
+    // lost the logo permanently.
     if (typeof toSave.logoUrl === 'string' && toSave.logoUrl.startsWith('data:') && toSave.logoUrl.length > 50000) {
-      saveLargeAsset('custom_logo', toSave.logoUrl).catch(() => {});
-      toSave.logoUrl = IDB_LOGO_MARKER;
+      const saved = await saveLargeAsset('custom_logo', toSave.logoUrl);
+      if (saved) {
+        toSave.logoUrl = IDB_LOGO_MARKER;
+      }
+      // If IndexedDB failed, keep the data URL and let the quota fallback below handle it.
     }
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -237,13 +263,16 @@ export function savePersistedConfig(config: PersistedConfig): boolean {
   } catch (err: any) {
     console.warn('LocalStorage save error (attempting quota cleanup):', err);
     try {
-      // Emergency quota recovery: purge obsolete legacy keys and retry
+      // Emergency quota recovery: snapshot keys first. Removing items
+      // while iterating localStorage by index skips keys.
+      const keysToPurge: string[] = [];
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
         if (key && key.startsWith('furniture_editor_') && key !== STORAGE_KEY) {
-          window.localStorage.removeItem(key);
+          keysToPurge.push(key);
         }
       }
+      for (const key of keysToPurge) window.localStorage.removeItem(key);
       const stripped = { ...config, logoUrl: null };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));
       return true;

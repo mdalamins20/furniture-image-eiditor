@@ -4,6 +4,7 @@ import { useEditorContext } from '../../context/EditorContext';
 import CropModal from './CropModal';
 import ImageProcessingOverlay from '../Common/ImageProcessingOverlay';
 import type { ImageSetting } from '../../types';
+import { useToast } from '../Common/ToastContext';
 import { SHOWROOMS } from '../../types';
 
 export default function CanvasPreview() {
@@ -29,6 +30,7 @@ export default function CanvasPreview() {
     activeElement, setActiveElement
   } = useEditorContext();
 
+  const { error: toastError, info: toastInfo } = useToast();
   const [renderedWidth, setRenderedWidth] = useState(1000);
   const [localDragPos, setLocalDragPos] = useState<{ x: number, y: number } | null>(null);
   const dragPosRef = useRef<{ x: number, y: number } | null>(null);
@@ -142,8 +144,14 @@ export default function CanvasPreview() {
 
   const handleCropSave = (blob: Blob) => {
     const newUrl = URL.createObjectURL(blob);
+    const oldUrl = previewUrls[previewIndex];
+    if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
     const oldFile = mainImages[previewIndex];
-    const newFile = new File([blob], oldFile ? oldFile.name : `cropped_${previewIndex}.jpg`, { type: 'image/jpeg' });
+    // Preserve PNG transparency: previously every crop was re-encoded as JPEG.
+    const mime = blob.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const ext = mime === 'image/png' ? 'png' : 'jpg';
+    const baseName = oldFile ? oldFile.name.replace(/\.[a-zA-Z0-9]+$/, '') : `cropped_${previewIndex}`;
+    const newFile = new File([blob], `${baseName}.${ext}`, { type: mime });
     
     setPreviewUrls(prev => {
       const copy = [...prev];
@@ -568,7 +576,7 @@ export default function CanvasPreview() {
           setIsProcessing(false);
           if (err.name === 'AbortError') return;
           if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
-            alert('ব্রাউজারের সিকিউরিটির কারণে সরাসরি মূল "Downloads" বা "Desktop" ফোল্ডার সিলেক্ট করা যায় না।\n\nদয়া করে Downloads-এর ভেতরে "নতুন একটি ফোল্ডার (New Folder)" তৈরি করে সেটি সিলেক্ট করুন।');
+            toastInfo('ব্রাউজারের সিকিউরিটির কারণে মূল Downloads/Desktop ফোল্ডার সিলেক্ট করা যায় না। Downloads-এর ভেতরে নতুন একটি ফোল্ডার তৈরি করে সেটি সিলেক্ট করুন।');
             return;
           }
           console.warn('Directory picker failed, falling back to traditional download', err);
@@ -738,7 +746,7 @@ export default function CanvasPreview() {
       }
 
       if (failedExports.length > 0) {
-        alert(`এই ছবিগুলো লোড করা যায়নি বলে এক্সপোর্ট হয়নি: ${failedExports.join(', ')}`);
+        toastError(`এই ছবিগুলো লোড করা যায়নি বলে এক্সপোর্ট হয়নি: ${failedExports.join(', ')}`);
       }
     } finally {
       setIsProcessing(false);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useToast } from '../../components/Common/ToastContext';
 import { 
   Store, Plus, Trash2, Edit2, Upload, Check, Cloud, 
   Phone, Image as ImageIcon, CheckCircle2, ShieldCheck, 
@@ -20,6 +21,7 @@ interface ProfileModuleProps {
 }
 
 export const ProfileModule: React.FC<ProfileModuleProps> = ({ onBackToStudio }) => {
+  const { error: toastError } = useToast();
   const { user, signInWithGoogle, signOutUser } = useAuth();
   const [showrooms, setShowrooms] = useState<ShowroomItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,7 +103,7 @@ export const ProfileModule: React.FC<ProfileModuleProps> = ({ onBackToStudio }) 
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err) {
       console.error('Failed to save showroom:', err);
-      alert('শোরুম সেভ করতে সমস্যা হয়েছে');
+      toastError('শোরুম সেভ করতে সমস্যা হয়েছে');
     } finally {
       setIsSubmitting(false);
     }

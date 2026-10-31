@@ -8,7 +8,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { user, isConfigured, signInWithGoogle, signInWithEmail, signUpWithEmail, signOutUser } = useAuth();
+  const { user, isConfigured, signInWithGoogle, signInWithEmail, signUpWithEmail, signOutUser, resetPassword } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +35,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError('পাসওয়ার্ড রিসেটের জন্য প্রথমে ইমেইল লিখুন।');
+      return;
+    }
+    setError(null);
+    const ok = await resetPassword(email.trim());
+    if (!ok) setError('পাসওয়ার্ড রিসেট লিংক পাঠানো যায়নি।');
   };
 
   const handleGoogleSignIn = async () => {
@@ -121,6 +131,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
               {/* 1-Click Google Sign In */}
               <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="w-full text-center text-xs font-semibold text-blue-600 hover:underline py-1"
+                >
+                  পাসওয়ার্ড ভুলে গেছেন?
+                </button>
+                <button
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={isSubmitting || !isConfigured}

@@ -226,7 +226,7 @@ export const saveCustomShowroom = async (
     } catch (err: any) {
       console.error('Firestore save failed (Check Firebase Console Security Rules):', err);
       if (err?.code === 'permission-denied') {
-        alert('ফায়ারবেস সিকিউরিটি রুলস পারমিশন না দেওয়ায় ক্লাউডে সেভ হয়নি। অনুগ্রহ করে Firebase Console-এ Rules আপডেট করুন।');
+        throw new Error('ফায়ারবেস সিকিউরিটি রুলস পারমিশন না দেওয়ায় ক্লাউডে সেভ হয়নি। Firebase Console-এ Rules আপডেট করুন।');
       }
     }
   }

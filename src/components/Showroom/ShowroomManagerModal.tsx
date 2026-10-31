@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useToast } from '../Common/ToastContext';
 import { 
   X, Store, Plus, Trash2, Edit2, Upload, Check, 
   Cloud, HardDrive, Phone, Image as ImageIcon, CheckCircle2 
@@ -29,6 +30,7 @@ export const ShowroomManagerModal: React.FC<ShowroomManagerModalProps> = ({
   onSelectShowroom,
   onShowroomsUpdated
 }) => {
+  const { error: toastError } = useToast();
   const { user, isConfigured } = useAuth();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -91,7 +93,7 @@ export const ShowroomManagerModal: React.FC<ShowroomManagerModalProps> = ({
       onShowroomsUpdated();
     } catch (err) {
       console.error('Failed to save showroom:', err);
-      alert('শোরুম সেভ করতে সমস্যা হয়েছে');
+      toastError('শোরুম সেভ করতে সমস্যা হয়েছে');
     } finally {
       setIsSubmitting(false);
     }

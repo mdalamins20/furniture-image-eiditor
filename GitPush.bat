@@ -172,8 +172,10 @@ echo =======================================================
 echo.
 
 color 0E
-echo [ACTION] Force pushing... Deleting old remote code and uploading the new local code...
-git push --force -u origin %CURRENT_BRANCH% 2> force_push_error_log.txt
+echo [ACTION] Push failed. Automatic force-push is disabled because it can
+echo delete remote code. Please resolve the conflict manually, for example:
+echo   git pull --rebase origin %CURRENT_BRANCH%
+echo then run this script again. Stopping here instead of force-pushing.
 
 if %errorlevel% neq 0 (
     color 0C

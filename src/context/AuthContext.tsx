@@ -6,9 +6,12 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile,
-  signOut 
+  signOut,
+  sendPasswordResetEmail,
+  sendEmailVerification
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../services/firebase';
+import { useToast } from '../components/Common/ToastContext';
 import { syncUserProfileToFirestore } from '../services/showroomService';
 
 interface AuthContextType {
@@ -16,6 +19,7 @@ interface AuthContextType {
   loading: boolean;
   isConfigured: boolean;
   signInWithGoogle: () => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, displayName?: string) => Promise<void>;
   signOutUser: () => Promise<void>;
@@ -24,6 +28,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { error: toastError, success: toastSuccess } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +51,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signInWithGoogle = async () => {
     if (!isFirebaseConfigured) {
-      alert('Firebase credentials are not configured in .env yet.');
+      toastError('Firebase credentials are not configured in .env yet.');
       return false;
     }
     try {
@@ -56,14 +61,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const error = err as { code?: string; message?: string };
       console.error('Google Sign-in failed:', error);
       if (error?.code === 'auth/unauthorized-domain') {
-        alert(
-          '❌ ডোমেন অনুমোদিত নয় (Unauthorized Domain)!\n\n' +
-          'Firebase Console-এ এই ডোমেনটি যোগ করতে হবে:\n' +
-          '1. Firebase Console > Authentication > Settings > Authorized domains-এ যান।\n' +
-          `2. "${window.location.hostname}" ডোমেনটি যুক্ত করুন।`
-        );
+        toastError('ডোমেন অনুমোদিত নয়। Firebase Console > Authentication > Authorized domains-এ এই ডোমেনটি যোগ করুন।');
       } else if (error?.code !== 'auth/popup-closed-by-user') {
-        alert(`গুগল সাইন-ইন ব্যর্থ হয়েছে: ${error?.message || 'অজানা ত্রুটি'}`);
+        toastError(`গুগল সাইন-ইন ব্যর্থ হয়েছে: ${error?.message || 'অজানা ত্রুটি'}`);
       }
       return false;
     }
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signInWithEmail = async (email: string, pass: string) => {
     if (!isFirebaseConfigured) {
-      alert('Firebase credentials are not configured in .env yet.');
+      toastError('Firebase credentials are not configured in .env yet.');
       return;
     }
     await signInWithEmailAndPassword(auth, email, pass);
@@ -79,13 +79,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signUpWithEmail = async (email: string, pass: string, displayName?: string) => {
     if (!isFirebaseConfigured) {
-      alert('Firebase credentials are not configured in .env yet.');
+      toastError('Firebase credentials are not configured in .env yet.');
       return;
     }
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    try {
+      await sendEmailVerification(cred.user);
+    } catch {
+      // Signup succeeded; verification mail failure must not undo it.
+      toastError('ভেরিফিকেশন ইমেইল পাঠানো যায়নি, পরে আবার চেষ্টা করুন।');
+    }
     if (displayName && cred.user) {
       await updateProfile(cred.user, { displayName });
       setUser({ ...cred.user, displayName });
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<boolean> => {
+    if (!isFirebaseConfigured) {
+      toastError('Firebase credentials are not configured in .env yet.');
+      return false;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toastSuccess('পাসওয়ার্ড রিসেট লিংক আপনার ইমেইলে পাঠানো হয়েছে।');
+      return true;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'অজানা ত্রুটি';
+      toastError(`পাসওয়ার্ড রিসেট ব্যর্থ হয়েছে: ${msg}`);
+      return false;
     }
   };
 
@@ -104,6 +126,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
+      resetPassword,
       signOutUser
     }}>
       {children}

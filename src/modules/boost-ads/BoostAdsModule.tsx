@@ -12,6 +12,7 @@ import {
   parsePriceFromFilename, generateModelNumber, normalizeDigitsToEnglish 
 } from './utils/priceCalculators';
 import { renderAdCanvas, clearImageCache, getCachedImage } from './utils/canvasDrawEngine';
+import { useToast } from '../../components/Common/ToastContext';
 import BoostHeader from './components/BoostHeader';
 import BoostCanvas from './components/BoostCanvas';
 import BoostSidebar from './components/sidebar/BoostSidebar';
@@ -23,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function BoostAdsModule() {
   const { user } = useAuth();
   // --- Active Sidebar Tab ---
+  const { success: toastSuccess, error: toastError } = useToast();
   const [activeTab, setActiveTab] = useState<SidebarTab>('showroom');
 
   // --- Bulk Images State ---
@@ -344,7 +346,13 @@ export default function BoostAdsModule() {
     images, selectedImageIds
   ]);
 
+  const lastSnapshotTimeRef = useRef(0);
   const recordSnapshot = useCallback(() => {
+    // Slider ticks used to record a full snapshot (including File objects)
+    // on every tick. Throttle to at most one snapshot per 400ms.
+    const now = Date.now();
+    if (now - lastSnapshotTimeRef.current < 400) return;
+    lastSnapshotTimeRef.current = now;
     const snap = takeSnapshot();
     pastRef.current.push(snap);
     if (pastRef.current.length > 40) pastRef.current.shift();
@@ -1259,7 +1267,7 @@ export default function BoostAdsModule() {
         isExporting: true
       });
       if (!rendered) {
-        alert('ছবি লোড করা যায়নি বলে এক্সপোর্ট করা হয়নি। ছবিটি আবার আপলোড করে চেষ্টা করুন।');
+        toastError('ছবি লোড করা যায়নি বলে এক্সপোর্ট করা হয়নি। ছবিটি আবার আপলোড করে চেষ্টা করুন।');
         return;
       }
       const blob = await new Promise<Blob | null>((resolve) => {
@@ -1351,9 +1359,9 @@ export default function BoostAdsModule() {
           }
         }
 
-        alert(`সফলভাবে "${activeShowroom.name}" ফোল্ডারে ${images.length}টি ছবি সেভ হয়েছে!`);
+        toastSuccess(`সফলভাবে "${activeShowroom.name}" ফোল্ডারে ${images.length}টি ছবি সেভ হয়েছে!`);
         if (failedBulkExports.length > 0) {
-          alert(`এই ছবিগুলো লোড করা যায়নি বলে সেভ হয়নি: ${failedBulkExports.join(', ')}`);
+          toastError(`এই ছবিগুলো লোড করা যায়নি বলে সেভ হয়নি: ${failedBulkExports.join(', ')}`);
         }
       } else {
         // Fallback for network IP (e.g. http://192.168... where Chrome locks showDirectoryPicker)
@@ -1390,7 +1398,7 @@ export default function BoostAdsModule() {
         }
 
         if (failedBulkExports.length > 0) {
-          alert(`এই ছবিগুলো লোড করা যায়নি বলে ZIP-এ আসেনি: ${failedBulkExports.join(', ')}`);
+          toastError(`এই ছবিগুলো লোড করা যায়নি বলে ZIP-এ আসেনি: ${failedBulkExports.join(', ')}`);
         }
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const downloadUrl = URL.createObjectURL(zipBlob);
@@ -1404,7 +1412,7 @@ export default function BoostAdsModule() {
       }
     } catch (err) {
       console.error('Bulk folder export error:', err);
-      alert('ছবিগুলো সেভ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      toastError('ছবিগুলো সেভ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
     } finally {
       setIsProcessing(false);
       setBatchProgress(null);

@@ -491,9 +491,14 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       watermarkCustomAngle,
       watermarkIsGrid,
       watermarkGridSpacing,
+      defaultLogoPos: { ...defaultLogoPos },
+      defaultNumberPos: { ...defaultNumberPos },
+      defaultWatermarkPos: { ...defaultWatermarkPos },
+      downloadFormat,
     }
   }), [
     imageSettings, selectedShowroom, logoUrl, numberText, fontFamily, logoSize,
+    defaultLogoPos, defaultNumberPos, defaultWatermarkPos, downloadFormat,
     enableLogoShadow, logoShadowColor, logoShadowBlur, logoShadowIntensity,
     numberColor, numberBgColor, numberSize, letterSpacing, lineHeight,
     fontWeight, fontStyle, textDecoration, textTransform, padX, padY,
@@ -570,6 +575,10 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setWatermarkCustomAngle(g.watermarkCustomAngle);
     setWatermarkIsGrid(g.watermarkIsGrid);
     setWatermarkGridSpacing(g.watermarkGridSpacing);
+    if (g.defaultLogoPos) setDefaultLogoPos({ ...g.defaultLogoPos });
+    if (g.defaultNumberPos) setDefaultNumberPos({ ...g.defaultNumberPos });
+    if (g.defaultWatermarkPos) setDefaultWatermarkPos({ ...g.defaultWatermarkPos });
+    if (g.downloadFormat) setDownloadFormat(g.downloadFormat);
   }, [
     setSelectedShowroom, setLogoUrl, setNumberText, setFontFamily, setLogoSize,
     setEnableLogoShadow, setLogoShadowColor, setLogoShadowBlur, setLogoShadowIntensity,
