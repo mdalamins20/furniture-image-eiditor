@@ -1,8 +1,21 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Phone, Palette, Type, Sliders, AlignCenter, Bold, Italic, Underline, ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
+import { Phone, Palette, Type, Sliders, AlignCenter, Bold, Italic, Underline, Strikethrough, Space as SpaceIcon, Baseline, ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { useEditorContext } from '../../../context/EditorContext';
 import { FONTS } from '../../../types';
-import { extractImagePalette, type ImagePaletteResult } from '../../../utils/imageAnalyzer';
+
+// 10 Fixed Curated Furniture Studio Color Presets
+const FIXED_COLOR_TEMPLATES = [
+  { id: 'fixed-1', bg: '#B45309', text: '#FFFFFF', name: 'অ্যাম্বার উড' },
+  { id: 'fixed-2', bg: '#0071E3', text: '#FFFFFF', name: 'রয়্যাল ব্লু' },
+  { id: 'fixed-3', bg: '#18181B', text: '#FFFFFF', name: 'চারকোল ব্ল্যাক' },
+  { id: 'fixed-4', bg: '#FFD700', text: '#111827', name: 'গোল্ডেন ইয়েলো' },
+  { id: 'fixed-5', bg: '#059669', text: '#FFFFFF', name: 'এমারেল্ড গ্রিন' },
+  { id: 'fixed-6', bg: '#DC2626', text: '#FFFFFF', name: 'ক্রিমসন রেড' },
+  { id: 'fixed-7', bg: '#7C3AED', text: '#FFFFFF', name: 'রয়্যাল ভায়োলেট' },
+  { id: 'fixed-8', bg: '#D97706', text: '#111827', name: 'ওয়ার্ম সেগুন' },
+  { id: 'fixed-9', bg: '#4B5563', text: '#FFFFFF', name: 'স্লেট গ্রে' },
+  { id: 'fixed-10', bg: '#F3F4F6', text: '#111827', name: 'ক্লিন লাইট' },
+];
 
 // Fallback / Classic BD Furniture Color Presets
 const CLASSIC_PALETTES = [
@@ -25,44 +38,20 @@ export default function NumberInspector() {
     fontStyle, setFontStyle,
     textDecoration, setTextDecoration,
     textTransform, setTextTransform,
+    letterSpacing, setLetterSpacing,
+    lineHeight, setLineHeight,
     padX, setPadX,
     padY, setPadY,
     customRadius, setCustomRadius,
     numberStyle, setNumberStyle,
     numberOutlineThickness, setNumberOutlineThickness,
-    imageSettings, previewIndex, previewUrls, mainImages,
+    imageSettings, previewIndex,
     updateSetting, updateSettingsBatch, recordSnapshot
   } = useEditorContext();
 
-  const [imagePalette, setImagePalette] = useState<ImagePaletteResult | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
   const [showClassic, setShowClassic] = useState(false);
 
   const currentSetting = imageSettings[previewIndex];
-  const activeImageSource = previewUrls[previewIndex] || mainImages[previewIndex];
-
-  // Auto scan image color palette on active image switch
-  useEffect(() => {
-    if (!activeImageSource) {
-      setImagePalette(null);
-      return;
-    }
-
-    let isMounted = true;
-    setIsScanning(true);
-    extractImagePalette(activeImageSource)
-      .then(res => {
-        if (isMounted) {
-          setImagePalette(res);
-          setIsScanning(false);
-        }
-      })
-      .catch(() => {
-        if (isMounted) setIsScanning(false);
-      });
-
-    return () => { isMounted = false; };
-  }, [activeImageSource]);
 
   // Quick alignment position presets
   const setPositionPreset = (x: number, y: number) => {
@@ -70,39 +59,6 @@ export default function NumberInspector() {
     updateSetting('numberPos', { x, y });
     updateSetting('isNumberPosManual', true);
   };
-
-  // Unified color pairs extracted automatically from the photo
-  // 10 distinct non-duplicate color pairs extracted from photo
-  const dynamicColorPairs = useMemo(() => {
-    const swatches = imagePalette?.swatches || [];
-    if (swatches.length >= 10) {
-      return swatches.slice(0, 10).map((swatch, idx) => ({
-        id: `color-${idx}-${swatch.hex}`,
-        bg: swatch.hex,
-        text: swatch.contrastText,
-      }));
-    }
-
-    // High-contrast, diverse furniture studio colors as fallback
-    const defaults = [
-      { bg: '#B45309', text: '#FFFFFF' }, // Amber Wood
-      { bg: '#0071E3', text: '#FFFFFF' }, // Royal Navy
-      { bg: '#18181B', text: '#FFFFFF' }, // Charcoal Black
-      { bg: '#FFD700', text: '#111827' }, // Gold
-      { bg: '#059669', text: '#FFFFFF' }, // Emerald Green
-      { bg: '#DC2626', text: '#FFFFFF' }, // Crimson
-      { bg: '#7C3AED', text: '#FFFFFF' }, // Royal Violet
-      { bg: '#D97706', text: '#111827' }, // Warm Teak
-      { bg: '#4B5563', text: '#FFFFFF' }, // Slate Gray
-      { bg: '#F3F4F6', text: '#111827' }, // Clean Light
-    ];
-
-    return defaults.map((item, idx) => ({
-      id: `default-${idx}`,
-      bg: item.bg,
-      text: item.text,
-    }));
-  }, [imagePalette]);
 
   // Apply color pair directly
   const handleApplyPair = (bg: string, text: string) => {
@@ -136,7 +92,7 @@ export default function NumberInspector() {
   return (
     <div className="space-y-4">
       {/* 1. Phone Number Input */}
-      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-[24px] border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
+      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-xl border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
         <div className="flex items-center gap-2.5 mb-1">
           <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100/50">
             <Phone className="w-3.5 h-3.5 text-blue-600" />
@@ -186,37 +142,30 @@ export default function NumberInspector() {
         </div>
       </div>
 
-      {/* 2. Unified Photo Color Pairs & Badge Style */}
-      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-[24px] border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
+      {/* 2. Fixed Number Color Templates & Badge Style */}
+      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-xl border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100/50">
               <Palette className="w-3.5 h-3.5 text-blue-600" />
             </div>
-            <h3 className="text-[13px] font-bold text-gray-800 tracking-wide">ছবির ম্যাচিং কালার পেয়ার</h3>
+            <h3 className="text-[13px] font-bold text-gray-800 tracking-wide">নম্বর কালার টেমপ্লেট</h3>
           </div>
 
-          {isScanning ? (
-            <span className="text-[10px] text-blue-600 font-medium flex items-center gap-1.5 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" />
-              স্ক্যান হচ্ছে...
-            </span>
-          ) : (
-            <span className="text-[9px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-              ● অটো ম্যাচিং
-            </span>
-          )}
+          <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200/60">
+            ১০টি ফিক্সড কালার
+          </span>
         </div>
 
-        {/* Unified 10 Distinct Color Pairs Grid - Pure color display without names */}
+        {/* 10 Distinct Fixed Color Pairs Grid */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium">
-            <span>১০টি ম্যাচিং কালার পেয়ার</span>
+            <span>রেডিমেড কালার পেয়ার</span>
             <span className="text-[10px] text-gray-400">পটভূমি + টেক্সট</span>
           </div>
 
           <div className="grid grid-cols-2 gap-1.5">
-            {dynamicColorPairs.map((pair) => {
+            {FIXED_COLOR_TEMPLATES.map((pair) => {
               const isActive = (
                 currentBg.toLowerCase() === pair.bg.toLowerCase() &&
                 currentText.toLowerCase() === pair.text.toLowerCase()
@@ -377,28 +326,152 @@ export default function NumberInspector() {
         </div>
       </div>
 
-      {/* 3. Typography & Size */}
-      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-[24px] border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
+      {/* 3. Font Style */}
+      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-xl border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
         <div className="flex items-center gap-2.5 mb-1">
           <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100/50">
             <Type className="w-3.5 h-3.5 text-blue-600" />
           </div>
-          <h3 className="text-[13px] font-bold text-gray-800 tracking-wide">টাইপোগ্রাফি ও ফন্ট</h3>
+          <h3 className="text-[13px] font-bold text-gray-800 tracking-wide">ফন্ট স্টাইল</h3>
         </div>
 
-        {/* Font Select */}
-        <select
-          value={currentSetting?.fontFamily ?? fontFamily}
-          onChange={(e) => updateSetting('fontFamily', e.target.value, setFontFamily as any)}
-          className="w-full p-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-gray-700 font-medium"
-        >
-          {FONTS.map(f => (
-            <option key={f.name} value={f.name}>{f.name}</option>
-          ))}
-        </select>
+        {/* Row 1: Font Select (Left) + B / I / U / S (Right) */}
+        <div className="flex items-center gap-2">
+          <select
+            value={currentSetting?.fontFamily ?? fontFamily}
+            onChange={(e) => updateSetting('fontFamily', e.target.value, setFontFamily as any)}
+            className="w-1/2 p-2 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-gray-800 cursor-pointer"
+          >
+            {FONTS.map(f => (
+              <option key={f.name} value={f.name}>{f.name}</option>
+            ))}
+          </select>
 
-        {/* Font Size */}
-        <div className="space-y-1">
+          <div className="flex flex-1 border border-gray-200 rounded-xl bg-gray-50 overflow-hidden divide-x divide-gray-200">
+            <button
+              type="button"
+              onClick={() => updateSetting('fontWeight', (currentSetting?.fontWeight ?? fontWeight) === 'bold' ? 'normal' : 'bold', setFontWeight as any)}
+              className={`flex-1 py-2 flex items-center justify-center transition-all ${
+                (currentSetting?.fontWeight ?? fontWeight) === 'bold'
+                  ? 'bg-blue-100 text-blue-700 font-bold'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Bold"
+            >
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => updateSetting('fontStyle', (currentSetting?.fontStyle ?? fontStyle) === 'italic' ? 'normal' : 'italic', setFontStyle as any)}
+              className={`flex-1 py-2 flex items-center justify-center transition-all ${
+                (currentSetting?.fontStyle ?? fontStyle) === 'italic'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Italic"
+            >
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => updateSetting('textDecoration', (currentSetting?.textDecoration ?? textDecoration) === 'underline' ? 'none' : 'underline', setTextDecoration as any)}
+              className={`flex-1 py-2 flex items-center justify-center transition-all ${
+                (currentSetting?.textDecoration ?? textDecoration) === 'underline'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Underline"
+            >
+              <Underline className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => updateSetting('textDecoration', (currentSetting?.textDecoration ?? textDecoration) === 'line-through' ? 'none' : 'line-through', setTextDecoration as any)}
+              className={`flex-1 py-2 flex items-center justify-center transition-all ${
+                (currentSetting?.textDecoration ?? textDecoration) === 'line-through'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Strikethrough"
+            >
+              <Strikethrough className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: AA / aa / Aa (Left) + Line Height & Letter Spacing Sliders (Right) */}
+        <div className="flex items-center gap-3">
+          <div className="flex border border-gray-200 rounded-xl bg-gray-50 overflow-hidden divide-x divide-gray-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => updateSetting('textTransform', 'uppercase', setTextTransform as any)}
+              className={`px-3 py-1.5 flex items-center justify-center text-xs font-bold transition-all ${
+                (currentSetting?.textTransform ?? textTransform) === 'uppercase'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="All Caps"
+            >
+              AA
+            </button>
+            <button
+              type="button"
+              onClick={() => updateSetting('textTransform', 'lowercase', setTextTransform as any)}
+              className={`px-3 py-1.5 flex items-center justify-center text-xs font-bold transition-all ${
+                (currentSetting?.textTransform ?? textTransform) === 'lowercase'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Small Caps"
+            >
+              aa
+            </button>
+            <button
+              type="button"
+              onClick={() => updateSetting('textTransform', 'none', setTextTransform as any)}
+              className={`px-3 py-1.5 flex items-center justify-center text-xs font-bold transition-all ${
+                (currentSetting?.textTransform ?? textTransform) === 'none'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:bg-gray-100'
+              }`}
+              title="Normal"
+            >
+              Aa
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2">
+              <span title="লাইন হাইট (Line Height)"><SpaceIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" /></span>
+              <input
+                type="range"
+                min="0.8"
+                max="2.5"
+                step="0.05"
+                value={currentSetting?.lineHeight ?? lineHeight}
+                onChange={(e) => updateSetting('lineHeight', Number(e.target.value), setLineHeight as any)}
+                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                title={`লাইন হাইট: ${currentSetting?.lineHeight ?? lineHeight}`}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span title="লেটার স্পেসিং (Letter Spacing)"><Baseline className="w-3.5 h-3.5 text-gray-400 shrink-0" /></span>
+              <input
+                type="range"
+                min="-5"
+                max="30"
+                step="1"
+                value={currentSetting?.letterSpacing ?? letterSpacing}
+                onChange={(e) => updateSetting('letterSpacing', Number(e.target.value), setLetterSpacing as any)}
+                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                title={`লেটার স্পেসিং: ${currentSetting?.letterSpacing ?? letterSpacing}px`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Font Size Slider */}
+        <div className="space-y-1 pt-1 border-t border-gray-100">
           <div className="flex justify-between text-[11px] text-gray-600 font-medium">
             <span>ফন্ট সাইজ</span>
             <span className="text-blue-600 font-semibold">{currentSetting?.numberSize ?? numberSize}px</span>
@@ -410,58 +483,10 @@ export default function NumberInspector() {
             className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
           />
         </div>
-
-        {/* Formatting Buttons */}
-        <div className="flex gap-1.5 pt-1">
-          <button
-            onClick={() => updateSetting('fontWeight', (currentSetting?.fontWeight ?? fontWeight) === 'bold' ? 'normal' : 'bold', setFontWeight as any)}
-            className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center ${
-              (currentSetting?.fontWeight ?? fontWeight) === 'bold'
-                ? 'bg-blue-50 border-blue-300 text-blue-600'
-                : 'bg-gray-50 border-gray-200 text-gray-600'
-            }`}
-            title="Bold"
-          >
-            <Bold className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => updateSetting('fontStyle', (currentSetting?.fontStyle ?? fontStyle) === 'italic' ? 'normal' : 'italic', setFontStyle as any)}
-            className={`flex-1 py-1.5 rounded-lg border text-xs font-italic transition-all flex items-center justify-center ${
-              (currentSetting?.fontStyle ?? fontStyle) === 'italic'
-                ? 'bg-blue-50 border-blue-300 text-blue-600'
-                : 'bg-gray-50 border-gray-200 text-gray-600'
-            }`}
-            title="Italic"
-          >
-            <Italic className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => updateSetting('textDecoration', (currentSetting?.textDecoration ?? textDecoration) === 'underline' ? 'none' : 'underline', setTextDecoration as any)}
-            className={`flex-1 py-1.5 rounded-lg border text-xs transition-all flex items-center justify-center ${
-              (currentSetting?.textDecoration ?? textDecoration) === 'underline'
-                ? 'bg-blue-50 border-blue-300 text-blue-600'
-                : 'bg-gray-50 border-gray-200 text-gray-600'
-            }`}
-            title="Underline"
-          >
-            <Underline className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => updateSetting('textTransform', (currentSetting?.textTransform ?? textTransform) === 'uppercase' ? 'none' : 'uppercase', setTextTransform as any)}
-            className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center justify-center ${
-              (currentSetting?.textTransform ?? textTransform) === 'uppercase'
-                ? 'bg-blue-50 border-blue-300 text-blue-600'
-                : 'bg-gray-50 border-gray-200 text-gray-600'
-            }`}
-            title="All Caps"
-          >
-            AA
-          </button>
-        </div>
       </div>
 
       {/* 4. Badge Shape & Padding */}
-      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-[24px] border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
+      <div className="bg-white/60 backdrop-blur-xl p-4.5 rounded-xl border border-white/50 shadow-[0_8px_32px_-12px_rgba(0,0,0,0.06)] space-y-3.5 transition-all">
         <div className="flex items-center gap-2.5 mb-1">
           <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100/50">
             <Sliders className="w-3.5 h-3.5 text-blue-600" />

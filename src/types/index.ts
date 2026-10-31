@@ -9,7 +9,7 @@ export interface ImageSetting {
   contrast?: number;
   saturation?: number;
   warmth?: number;
-  assignedShowroom?: typeof SHOWROOMS[0];
+  assignedShowroom?: ShowroomItem;
   logoUrl?: string;
   numberText?: string;
   logoSize?: number;
@@ -19,6 +19,7 @@ export interface ImageSetting {
   logoShadowIntensity?: number;
   numberColor?: string;
   numberBgColor?: string;
+  isNumberColorManual?: boolean;
   numberSize?: number;
   letterSpacing?: number;
   lineHeight?: number;
@@ -99,25 +100,42 @@ export interface EditorSnapshot {
   };
 }
 
-export const SHOWROOMS = [
-  { name: 'Dewan Furniture', numbers: '01873-728219\n01322-631984', file: 'Dewan Furniture.png' },
-  { name: 'Dewan Furniture 2', numbers: '01955-393478\n01610-605366', file: 'Dewan Furniture 2.png' },
-  { name: 'Nogor furniture', numbers: '01781-573405', file: 'Nogor Furniture.png' },
-  { name: 'Nojor Furniture', numbers: '01756-806415', file: 'Nojor Furniture.png' },
-  { name: 'Discount Furniture', numbers: '01744-496680\n01766-685921', file: 'Discount Furniture.png' },
-  { name: 'Ador Furniture', numbers: '01906210981\n01620909541', file: 'Ador Furniture.png' },
-  { name: 'Adarsha Furniture', numbers: '01745-620742\n01823-411301', file: 'Adarsha Furniture.png' },
-  { name: 'Adarsha Furniture Badda', numbers: '01823-411301\n01745-620742', file: 'Adarsha Furniture Badda.png' },
-  { name: 'Eagle Furniture', numbers: '01973-320030\n01321-665440', file: 'Eagle Furniture.png' },
-  { name: 'Eagle Furniture Badda', numbers: '01321-665440\n01973-320030', file: 'Eagle Furniture Badda.png' },
-  { name: 'Doyel Furniture', numbers: '01709-694631\n01744-499150', file: 'Doyel Furniture.png' },
-  { name: 'Kakolo Furniture', numbers: '01973-728219', file: 'Kakolo Furniture.png' },
-  { name: 'Kashful Furniture', numbers: '01314-712633\n01314-868410', file: 'Kashful Furniture.png' },
-  { name: 'Badda Furniture Bazar', numbers: '01314-719218\n01810-647896', file: '12. Badda Furniture Bazar.png' },
-  { name: 'Center Furniture', numbers: '01758-179012\n01314-614463', file: 'Center Furniture.png' },
-  { name: 'Juboraj Furniture', numbers: '01314-934244\n01860-578326', file: 'Juboraj Furniture.png' },
-  { name: 'Moniraj Furniture', numbers: '01314-834419\n01335-088103', file: 'Moniraj Furniture.png' },
-];
+export interface ShowroomItem {
+  id: string;
+  name: string;
+  numbers: string;
+  file?: string;
+  logoUrl?: string;
+  isDefault?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+/**
+ * Hardcoded Showrooms List (Commented out as requested - All showrooms and logos now run dynamically from Online Cloud / Firestore)
+ * To restore built-in offline presets in the future, simply uncomment this block:
+ * 
+ * export const HARDCODED_DEFAULT_SHOWROOMS: ShowroomItem[] = [
+ *   { id: 'dewan-1', name: 'Dewan Furniture', isDefault: true, numbers: '01873-728219\n01322-631984', file: 'Dewan Furniture.png' },
+ *   { id: 'dewan-2', name: 'Dewan Furniture 2', isDefault: true, numbers: '01955-393478\n01610-605366', file: 'Dewan Furniture 2.png' },
+ *   { id: 'nogor', name: 'Nogor furniture', isDefault: true, numbers: '01781-573405\n01756-806415', file: 'Nogor Furniture.png' },
+ *   { id: 'nojor', name: 'Nojor Furniture', isDefault: true, numbers: '01756-806415\n01781-573405', file: 'Nojor Furniture.png' },
+ *   { id: 'discount', name: 'Discount Furniture', isDefault: true, numbers: '01744-496680\n01766-685921', file: 'Discount Furniture.png' },
+ *   { id: 'ador', name: 'Ador Furniture', isDefault: true, numbers: '01906-210981\n01620-909541', file: 'Ador Furniture.png' },
+ *   { id: 'adarsha', name: 'Adarsha Furniture', isDefault: true, numbers: '01745-620742\n01823-411301', file: 'Adarsha Furniture.png' },
+ *   { id: 'adarsha-badda', name: 'Adarsha Furniture Badda', isDefault: true, numbers: '01823-411301\n01745-620742', file: 'Adarsha Furniture Badda.png' },
+ *   { id: 'eagle', name: 'Eagle Furniture', isDefault: true, numbers: '01973-320030\n01321-665440', file: 'Eagle Furniture.png' },
+ *   { id: 'eagle-badda', name: 'Eagle Furniture Badda', isDefault: true, numbers: '01973-320030\n01321-665440', file: 'Eagle Furniture Badda.png' },
+ *   { id: 'doyel', name: 'Doyel Furniture', isDefault: true, numbers: '01709-694631\n01744-499150', file: 'Doyel Furniture.png' },
+ *   { id: 'kakolo', name: 'Kakolo Furniture', isDefault: true, numbers: '01973-728219', file: 'Kakolo Furniture.png' },
+ *   { id: 'kashful', name: 'Kashful Furniture', isDefault: true, numbers: '01314-712633\n01314-868410', file: 'Kashful Furniture.png' },
+ *   { id: 'badda-bazar', name: 'Badda Furniture Bazar', isDefault: true, numbers: '01314-719218\n01810-647896', file: '12. Badda Furniture Bazar.png' },
+ *   { id: 'center', name: 'Center Furniture', isDefault: true, numbers: '01758-179012\n01314-614463', file: 'Center Furniture.png' },
+ *   { id: 'juboraj', name: 'Juboraj Furniture', isDefault: true, numbers: '01314-934244\n01860-578326', file: 'Juboraj Furniture.png' },
+ *   { id: 'moniraj', name: 'Moniraj Furniture', isDefault: true, numbers: '01314-834419\n01335-088103', file: 'Moniraj Furniture.png' },
+ * ];
+ */
+export const SHOWROOMS: ShowroomItem[] = [];
 
 export const FONTS = [
   // User Requested Custom Fonts (With Exact Names + High-Quality Google Font Fallbacks)
@@ -164,3 +182,5 @@ export const COLORS = [
   { id: 'gray', value: '#F3F4F6', text: '#111827' },
   { id: 'dark', value: '#111827', text: '#FFFFFF' },
 ];
+
+export type AppModuleType = 'hub' | 'daily-post' | 'photo-card' | 'boost-ads' | 'profile';

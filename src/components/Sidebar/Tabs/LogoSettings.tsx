@@ -50,7 +50,7 @@ export default function LogoSettings() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
       {/* Manual Logo Upload & Customization */}
-      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
         <h2 className="text-lg font-medium mb-5 flex items-center gap-3 text-[#1d1d1f]">
           <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shadow-black/5"><ImageIcon className="w-5 h-5" /></div>
           লোগো আপলোড ও সাইজ
@@ -139,7 +139,7 @@ export default function LogoSettings() {
       </div>
 
       {/* Watermark Customization */}
-      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-medium flex items-center gap-3 text-[#1d1d1f] cursor-pointer" onClick={() => setEnableWatermark(!enableWatermark)}>
             <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shadow-black/5">

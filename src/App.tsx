@@ -1,19 +1,94 @@
-import ImageEditor from './components/ImageEditor';
+import { useState, useEffect } from 'react';
 import AppHeader from './components/Header/AppHeader';
+import AppHub from './components/Hub/AppHub';
+import DailyPostModule from './modules/daily-post/DailyPostModule';
+import PhotoCardModule from './modules/photo-card/PhotoCardModule';
+import BoostAdsModule from './modules/boost-ads/BoostAdsModule';
+import ProfileModule from './modules/profile/ProfileModule';
+import { AuthProvider } from './context/AuthContext';
+import { AuthModal } from './components/Auth/AuthModal';
+import { subscribeShowrooms } from './services/showroomService';
+import { SHOWROOMS, type ShowroomItem, type AppModuleType } from './types';
 
-function App() {
+function AppContent() {
+  const [currentModule, setCurrentModule] = useState<AppModuleType>('hub');
+  const [, setShowrooms] = useState<ShowroomItem[]>(SHOWROOMS);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeShowrooms(null, (updated) => {
+      setShowrooms(updated);
+    });
+    return () => unsub();
+  }, []);
+
+  // Global module navigation event listener
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent<AppModuleType>;
+      if (customEvent.detail) {
+        setCurrentModule(customEvent.detail);
+      }
+    };
+    window.addEventListener('navigate-module', handleNavigate);
+    return () => window.removeEventListener('navigate-module', handleNavigate);
+  }, []);
+
   return (
     <div className="h-screen overflow-hidden bg-[#F5F5F7] flex flex-col font-sans selection:bg-blue-200 selection:text-gray-900">
-      {/* Native Desktop Pro App Header */}
-      <AppHeader />
+      {/* Native Desktop Pro App Header with Studio Switcher & Cloud Manager */}
+      <AppHeader 
+        currentModule={currentModule} 
+        onSelectModule={setCurrentModule}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+      />
 
-      {/* Main Content */}
-      <main className="flex-1 w-full mx-auto px-2 sm:px-4 lg:px-8 xl:px-12 py-2 sm:py-4 flex flex-col overflow-hidden">
-        <ImageEditor />
+      {/* Main Content Area */}
+      <main className="flex-1 w-full mx-auto flex flex-col overflow-hidden">
+        {currentModule === 'hub' && (
+          <div className="flex-1 w-full overflow-y-auto custom-scrollbar p-2 sm:p-4">
+            <AppHub onSelectModule={setCurrentModule} />
+          </div>
+        )}
+
+        {currentModule === 'daily-post' && (
+          <div className="flex-1 w-full p-1 sm:p-2 lg:p-4 xl:p-6 flex flex-col overflow-y-auto lg:overflow-hidden custom-scrollbar">
+            <DailyPostModule />
+          </div>
+        )}
+
+        {currentModule === 'photo-card' && (
+          <div className="flex-1 w-full p-1 sm:p-2 lg:p-4 xl:p-6 flex flex-col overflow-y-auto lg:overflow-hidden custom-scrollbar">
+            <PhotoCardModule />
+          </div>
+        )}
+
+        {currentModule === 'boost-ads' && (
+          <div className="flex-1 w-full p-1 sm:p-2 lg:p-4 xl:p-6 flex flex-col overflow-y-auto lg:overflow-hidden custom-scrollbar">
+            <BoostAdsModule />
+          </div>
+        )}
+
+        {currentModule === 'profile' && (
+          <div className="flex-1 w-full overflow-y-auto custom-scrollbar p-2 sm:p-4">
+            <ProfileModule onBackToStudio={(mod) => setCurrentModule(mod || 'hub')} />
+          </div>
+        )}
       </main>
 
+      {/* Cloud Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}

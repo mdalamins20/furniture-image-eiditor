@@ -1,20 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Maximize2, Minimize2, Keyboard, Sparkles, X, ExternalLink, BadgeCheck, Command } from 'lucide-react';
+import { 
+  Maximize2, Minimize2, Keyboard, Sparkles, X, BadgeCheck, 
+  Command, Cloud 
+} from 'lucide-react';
+import type { AppModuleType } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 interface AppHeaderProps {
   onOpenShortcuts?: () => void;
+  currentModule?: AppModuleType;
+  onSelectModule?: (module: AppModuleType) => void;
+  onOpenAuthModal?: () => void;
 }
 
-export default function AppHeader({ onOpenShortcuts }: AppHeaderProps) {
+export default function AppHeader({ 
+  onOpenShortcuts, 
+  currentModule = 'hub', 
+  onSelectModule,
+}: AppHeaderProps) {
+  const { user } = useAuth();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
-  const [time, setTime] = useState(new Date());
-
-  // Live Bengali Digital Clock
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Track Fullscreen state
   useEffect(() => {
@@ -36,19 +42,6 @@ export default function AppHeader({ onOpenShortcuts }: AppHeaderProps) {
     }
   };
 
-  const timeString = time.toLocaleTimeString('bn-BD', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  });
-
-  const dateString = time.toLocaleDateString('bn-BD', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short'
-  });
-
   const handleShortcutClick = () => {
     if (onOpenShortcuts) {
       onOpenShortcuts();
@@ -59,89 +52,98 @@ export default function AppHeader({ onOpenShortcuts }: AppHeaderProps) {
 
   return (
     <>
-      <header className="relative z-40 bg-white/85 backdrop-blur-2xl border-b border-gray-200/70 select-none shadow-[0_2px_16px_rgba(0,0,0,0.03)]">
-        <div className="w-full px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between gap-3">
+      <header className="relative z-40 bg-white/90 backdrop-blur-xl border-b border-gray-200/80 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="w-full px-3 sm:px-6 py-2 flex items-center justify-between gap-3">
           
-          {/* LEFT: Native App Controls & Branding */}
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-            {/* macOS Style Traffic Light Window Dots */}
-            <div className="hidden sm:flex items-center gap-1.5 pr-2 border-r border-gray-200/80">
-              <span className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E]/60 shadow-inner inline-block" title="Close" />
-              <span className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]/60 shadow-inner inline-block" title="Minimize" />
-              <span 
-                onClick={toggleFullscreen} 
-                className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]/60 shadow-inner inline-block cursor-pointer hover:opacity-80 active:scale-90 transition-transform" 
-                title="Fullscreen Toggle" 
-              />
-            </div>
-
-            {/* App Icon & Name */}
-            <div className="flex items-center gap-2.5">
-              <div className="relative group">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white p-0.5 shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-gray-100 flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105">
-                  <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover rounded-[13px]" />
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center">
-                  <span className="w-1 h-1 bg-white rounded-full"></span>
-                </div>
+          {/* LEFT: Branding */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div 
+              onClick={() => onSelectModule && onSelectModule('hub')} 
+              className="flex items-center gap-2.5 cursor-pointer group"
+              title="হোম ড্যাশবোর্ডে ফিরে যান"
+            >
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 shadow-xs border border-gray-200/80 flex items-center justify-center overflow-hidden transition-all group-hover:scale-105 group-hover:shadow-sm">
+                <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover rounded-[10px]" />
               </div>
 
               <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight leading-none flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight leading-none">
                     ফার্নিচার <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">ব্র্যান্ড স্টুডিও</span>
                   </h1>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200/60 shadow-[0_1px_2px_rgba(0,113,227,0.1)]">
-                    PRO 2.0
+                  <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200/60">
+                    PRO
                   </span>
                 </div>
-                <span className="text-[11px] text-gray-400 font-medium hidden sm:inline-block leading-tight mt-0.5">
-                  হাই-স্পিড ফার্নিচার ব্র্যান্ডিং প্ল্যাটফর্ম
+                <span className="text-[10.5px] text-gray-400 font-medium hidden sm:inline-block leading-tight mt-0.5">
+                  হাই-স্পিড ক্রিয়েটিভ স্যুট
                 </span>
               </div>
             </div>
           </div>
 
-          {/* CENTER: Dynamic Island / Live Studio Status Pill */}
-          <div className="hidden lg:flex items-center gap-2.5 bg-gray-100/70 hover:bg-gray-100 px-3.5 py-1.5 rounded-full border border-gray-200/60 shadow-inner backdrop-blur-md transition-all">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-[11px] font-semibold text-gray-700 tracking-wide">সক্রিয় স্টুডিও</span>
-            </div>
-
-            <span className="w-[1px] h-3.5 bg-gray-300" />
-
-            {/* Time & Day */}
-            <div className="flex items-center gap-2 text-xs font-semibold text-gray-800">
-              <span className="font-mono text-gray-900 font-bold">{timeString}</span>
-              <span className="text-[11px] text-gray-500 font-medium">({dateString})</span>
-            </div>
-          </div>
-
           {/* RIGHT: Quick Utilities & Developer Card */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Keyboard Shortcuts Trigger Button */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Profile & Cloud Account Button -> Opens Dedicated Profile Page */}
+            <button
+              type="button"
+              onClick={() => onSelectModule && onSelectModule(currentModule === 'profile' ? 'hub' : 'profile')}
+              className={`flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl text-xs font-bold border transition-all active:scale-95 cursor-pointer shadow-2xs ${
+                currentModule === 'profile'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25 ring-2 ring-blue-300'
+                  : user 
+                    ? 'bg-white hover:bg-gray-50 text-gray-800 border-gray-200' 
+                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 border-blue-200'
+              }`}
+              title={user ? `${user.displayName || user.email} (প্রোফাইল ড্যাশবোর্ড)` : 'গুগল প্রোফাইল ও ক্লাউড ড্যাশবোর্ড'}
+            >
+              {user ? (
+                <>
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-gray-200 bg-blue-100 flex items-center justify-center shrink-0">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-[11px] font-bold text-blue-700">{user.displayName?.charAt(0) || 'U'}</span>
+                    )}
+                  </div>
+                  <div className="hidden md:flex flex-col text-left">
+                    <span className="text-[11px] font-bold leading-tight max-w-[110px] truncate">
+                      {user.displayName || user.email?.split('@')[0]}
+                    </span>
+                    <span className="text-[9px] text-emerald-600 font-semibold leading-tight flex items-center gap-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> ক্লাউড প্রোফাইল
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center">
+                    <Cloud className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="hidden sm:inline font-bold">প্রোফাইল ও ক্লাউড</span>
+                </>
+              )}
+            </button>
+
+            {/* Keyboard Shortcuts Trigger Button - Desktop & Tablet */}
             <button
               type="button"
               onClick={handleShortcutClick}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gray-100/80 hover:bg-gray-200/70 text-gray-700 hover:text-gray-900 border border-gray-200/80 text-xs font-semibold shadow-sm transition-all active:scale-95 group"
+              className="hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gray-100/80 hover:bg-gray-200/70 text-gray-700 hover:text-gray-900 border border-gray-200/80 text-xs font-semibold shadow-2xs transition-all active:scale-95 cursor-pointer"
               title="কিবোর্ড শর্টকাট দেখুন (Ctrl+/)"
             >
-              <Keyboard className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-600 transition-colors" />
-              <span className="hidden sm:inline">শর্টকাট</span>
-              <kbd className="hidden md:inline-flex items-center gap-0.5 px-1 py-0.2 bg-white rounded text-[10px] font-mono text-gray-400 border border-gray-200">
+              <Keyboard className="w-3.5 h-3.5 text-gray-500" />
+              <span className="hidden lg:inline">শর্টকাট</span>
+              <kbd className="hidden xl:inline-flex items-center gap-0.5 px-1 py-0.2 bg-white rounded text-[10px] font-mono text-gray-400 border border-gray-200">
                 <Command className="w-2.5 h-2.5" />/
               </kbd>
             </button>
 
-            {/* Fullscreen Toggle Button */}
+            {/* Fullscreen Toggle Button - Tablet & Desktop */}
             <button
               type="button"
               onClick={toggleFullscreen}
-              className="flex items-center justify-center w-8 h-8 rounded-xl bg-gray-100/80 hover:bg-gray-200/70 text-gray-600 hover:text-gray-900 border border-gray-200/80 shadow-sm transition-all active:scale-95"
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl bg-gray-100/80 hover:bg-gray-200/70 text-gray-600 hover:text-gray-900 border border-gray-200/80 shadow-2xs transition-all active:scale-95 cursor-pointer"
               title={isFullscreen ? 'ফুলস্ক্রিন বন্ধ করুন' : 'ফুলস্ক্রিন মোড'}
             >
               {isFullscreen ? (
@@ -156,10 +158,10 @@ export default function AppHeader({ onOpenShortcuts }: AppHeaderProps) {
               href="https://mdalamin.web.app/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2.5 bg-white hover:bg-gray-50 p-1 sm:p-1.5 sm:pr-3.5 rounded-full border border-gray-200 shadow-sm transition-all hover:shadow hover:-translate-y-0.5 group shrink-0"
+              className="flex items-center gap-2 bg-white hover:bg-gray-50 p-1 sm:pr-3 rounded-full border border-gray-200/90 shadow-2xs transition-all hover:shadow-xs group shrink-0"
               title="মুহাম্মদ আল-আলামিনের পোর্টফোলিও দেখুন"
             >
-              <div className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border border-gray-200 shadow-inner">
+              <div className="relative w-7 h-7 rounded-full overflow-hidden border border-gray-200 shadow-inner shrink-0">
                 <img src="/alamin.png" alt="Muhammad Al-amin" className="w-full h-full object-cover rounded-full" />
                 <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white" />
               </div>
@@ -175,8 +177,6 @@ export default function AppHeader({ onOpenShortcuts }: AppHeaderProps) {
                   Lead Developer
                 </span>
               </div>
-
-              <ExternalLink className="w-3 h-3 text-gray-400 group-hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block ml-0.5" />
             </a>
           </div>
 
@@ -190,7 +190,7 @@ export default function AppHeader({ onOpenShortcuts }: AppHeaderProps) {
           onClick={() => setShowShortcutsModal(false)}
         >
           <div 
-            className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-gray-200/80 space-y-4"
+            className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-gray-200/80 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">

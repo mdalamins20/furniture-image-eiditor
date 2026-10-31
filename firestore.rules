@@ -1,0 +1,30 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if the user is authenticated and owns the data
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Default Deny Strategy: Block any unauthorized root access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // User Profile Documents: Only the account owner can read or write
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      // Showrooms Subcollection: Only the authenticated owner can read, write, query, and delete
+      match /showrooms/{showroomId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

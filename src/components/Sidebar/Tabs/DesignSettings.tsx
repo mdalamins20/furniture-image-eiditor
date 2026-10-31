@@ -59,7 +59,7 @@ export default function DesignSettings() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
       {/* Advanced Image Filters */}
-      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <h2 className="text-lg font-medium flex items-center gap-3 text-[#1d1d1f]">
             <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shadow-black/5">
@@ -131,7 +131,7 @@ export default function DesignSettings() {
       </div>
 
       {/* Number & Customization */}
-      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
         <h2 className="text-lg font-medium mb-5 flex items-center gap-3 text-[#1d1d1f]">
           <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shadow-black/5"><Settings className="w-5 h-5" /></div>
           নাম্বার ও ডিজাইন

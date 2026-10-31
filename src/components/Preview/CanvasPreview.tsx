@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Download, ChevronLeft, ChevronRight, Crop, Undo2, Redo2 } from 'lucide-react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { Download, ChevronLeft, ChevronRight, Crop, Undo2, Redo2, Upload, Sparkles } from 'lucide-react';
 import { useEditorContext } from '../../context/EditorContext';
 import CropModal from './CropModal';
+import ImageProcessingOverlay from '../Common/ImageProcessingOverlay';
 import type { ImageSetting } from '../../types';
 import { SHOWROOMS } from '../../types';
 
@@ -9,6 +10,10 @@ export default function CanvasPreview() {
   const {
     mainImages, setMainImages, previewUrls, setPreviewUrls, previewIndex, setPreviewIndex, setSelectedIndices, imageSettings, updateSetting,
     isProcessing, setIsProcessing,
+    processingProgress, processingStepText,
+    processedCount, remainingCount, estimatedSeconds, currentProcessingFile,
+    handleUpload, loadDemoSample,
+    defaultLogoPos, defaultNumberPos, defaultWatermarkPos,
     logoUrl, logoSize, enableLogoShadow, logoShadowColor, logoShadowBlur, logoShadowIntensity,
     numberText, numberSize, fontFamily, letterSpacing, lineHeight, fontWeight, fontStyle,
     textDecoration, textTransform, padX, padY, customRadius, numberBgColor, numberColor,
@@ -28,9 +33,12 @@ export default function CanvasPreview() {
   const [localDragPos, setLocalDragPos] = useState<{ x: number, y: number } | null>(null);
   const dragPosRef = useRef<{ x: number, y: number } | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isCanvasDragging, setIsCanvasDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState('center');
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
   const isPanningRef = useRef(false);
   const lastPanMouseRef = useRef({ x: 0, y: 0 });
   const zoomStateRef = useRef({ scale: 1, origin: 'center' });
@@ -42,6 +50,10 @@ export default function CanvasPreview() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewImageRef = useRef<HTMLImageElement>(null);
+  const numberBadgeRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const [badgeHalfPct, setBadgeHalfPct] = useState({ w: 16, h: 5 });
+  const [logoHalfPct, setLogoHalfPct] = useState({ w: 10, h: 5 });
 
   const clampPan = (targetPan: {x: number, y: number}, currentScale: number, currentOrigin: string) => {
     if (currentScale <= 1 || !containerRef.current) return { x: 0, y: 0 };
@@ -70,6 +82,7 @@ export default function CanvasPreview() {
     if (target.closest('.pointer-events-auto')) return;
     
     isPanningRef.current = true;
+    setIsPanning(true);
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     lastPanMouseRef.current = { x: clientX, y: clientY };
@@ -89,6 +102,7 @@ export default function CanvasPreview() {
 
   const handlePanEnd = () => {
     isPanningRef.current = false;
+    setIsPanning(false);
   };
 
   useEffect(() => {
@@ -147,7 +161,72 @@ export default function CanvasPreview() {
 
 
 
-  const currentSetting = imageSettings[previewIndex];
+  const hasActiveImage = previewUrls.length > 0 && !!previewUrls[previewIndex];
+
+  const currentSetting: ImageSetting = useMemo(() => {
+    if (imageSettings[previewIndex]) return imageSettings[previewIndex];
+    return {
+      logoPos: defaultLogoPos || { x: 12, y: 12 },
+      numberPos: defaultNumberPos || { x: 50, y: 88 },
+      watermarkPos: defaultWatermarkPos || { x: 50, y: 50 },
+      isLogoPosManual: true,
+      isNumberPosManual: true,
+      isWatermarkPosManual: true,
+      logoUrl: logoUrl || undefined,
+      logoSize: logoSize || 18,
+      enableLogoShadow: enableLogoShadow ?? true,
+      logoShadowColor: logoShadowColor || '#000000',
+      logoShadowBlur: logoShadowBlur || 15,
+      logoShadowIntensity: logoShadowIntensity || 2,
+      numberText: numberText || '',
+      numberSize: numberSize || 42,
+      fontFamily: fontFamily || 'Kalpurush',
+      letterSpacing: letterSpacing || 0,
+      lineHeight: lineHeight || 1.2,
+      fontWeight: fontWeight || 'bold',
+      fontStyle: fontStyle || 'normal',
+      textDecoration: textDecoration || 'none',
+      textTransform: textTransform || 'none',
+      padX: padX || 28,
+      padY: padY || 10,
+      customRadius: customRadius || 18,
+      numberColor: numberColor || '#FFFFFF',
+      numberBgColor: numberBgColor || '#B45309',
+      numberStyle: numberStyle || 'solid',
+      numberOutlineThickness: numberOutlineThickness || 4,
+      numberOutlineBlur: numberOutlineBlur || 0,
+      enableWatermark: enableWatermark ?? false,
+      watermarkText: watermarkText || '',
+      watermarkStyle: watermarkStyle || 'diagonal',
+      watermarkOpacity: watermarkOpacity || 20,
+      watermarkSize: watermarkSize || 36,
+      watermarkColor: watermarkColor || '#FFFFFF',
+      watermarkFontFamily: watermarkFontFamily || 'Kalpurush',
+      watermarkFontWeight: watermarkFontWeight || 'bold',
+      watermarkFontStyle: watermarkFontStyle || 'normal',
+      watermarkTextDecoration: watermarkTextDecoration || 'none',
+      watermarkTextTransform: watermarkTextTransform || 'none',
+      watermarkLetterSpacing: watermarkLetterSpacing || 2,
+      watermarkCustomAngle: watermarkCustomAngle || -45,
+      watermarkIsGrid: watermarkIsGrid ?? false,
+      watermarkGridSpacing: watermarkGridSpacing || 160,
+      brightness: brightness ?? 100,
+      contrast: contrast ?? 100,
+      saturation: saturation ?? 100,
+      warmth: warmth ?? 0,
+      assignedShowroom: selectedShowroom ? SHOWROOMS.find(s => s.name === selectedShowroom) : undefined
+    };
+  }, [
+    imageSettings, previewIndex, defaultLogoPos, defaultNumberPos, defaultWatermarkPos,
+    logoUrl, logoSize, enableLogoShadow, logoShadowColor, logoShadowBlur, logoShadowIntensity,
+    numberText, numberSize, fontFamily, letterSpacing, lineHeight, fontWeight, fontStyle,
+    textDecoration, textTransform, padX, padY, customRadius, numberColor, numberBgColor,
+    numberStyle, numberOutlineThickness, numberOutlineBlur, enableWatermark, watermarkText,
+    watermarkStyle, watermarkOpacity, watermarkSize, watermarkColor, watermarkFontFamily,
+    watermarkFontWeight, watermarkFontStyle, watermarkTextDecoration, watermarkTextTransform,
+    watermarkLetterSpacing, watermarkCustomAngle, watermarkIsGrid, watermarkGridSpacing,
+    brightness, contrast, saturation, warmth, selectedShowroom
+  ]);
 
   useEffect(() => {
     if (!previewImageRef.current) return;
@@ -173,6 +252,51 @@ export default function CanvasPreview() {
       setRenderedWidth(prev => prev + 0.0001);
     });
   }, []);
+
+  // Continuously track rendered dimensions of Badge and Logo to calculate mathematical safe margins
+  useEffect(() => {
+    const updateDims = () => {
+      if (!containerRef.current) return;
+      const cRect = containerRef.current.getBoundingClientRect();
+      if (cRect.width <= 0 || cRect.height <= 0) return;
+
+      if (numberBadgeRef.current) {
+        const nRect = numberBadgeRef.current.getBoundingClientRect();
+        const halfW = (nRect.width / cRect.width) * 50;
+        const halfH = (nRect.height / cRect.height) * 50;
+        if (halfW > 0 && halfH > 0) {
+          setBadgeHalfPct(prev => {
+            if (Math.abs(prev.w - halfW) < 0.05 && Math.abs(prev.h - halfH) < 0.05) return prev;
+            return { w: halfW, h: halfH };
+          });
+        }
+      }
+
+      if (logoRef.current) {
+        const lRect = logoRef.current.getBoundingClientRect();
+        const halfW = (lRect.width / cRect.width) * 50;
+        const halfH = (lRect.height / cRect.height) * 50;
+        if (halfW > 0 && halfH > 0) {
+          setLogoHalfPct(prev => {
+            if (Math.abs(prev.w - halfW) < 0.05 && Math.abs(prev.h - halfH) < 0.05) return prev;
+            return { w: halfW, h: halfH };
+          });
+        }
+      }
+    };
+
+    updateDims();
+    const frameId = requestAnimationFrame(updateDims);
+    const timeoutId = setTimeout(updateDims, 50);
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timeoutId);
+    };
+  }, [
+    renderedWidth, previewIndex, imageSettings,
+    numberText, numberSize, padX, padY, fontFamily, letterSpacing, lineHeight,
+    logoSize, logoUrl, aspectRatio
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!activeElement || !imageSettings[previewIndex]) return;
@@ -209,8 +333,12 @@ export default function CanvasPreview() {
       if (e.key === 'ArrowLeft') currentPos.x -= step;
       if (e.key === 'ArrowRight') currentPos.x += step;
 
-      currentPos.x = Math.max(0, Math.min(100, currentPos.x));
-      currentPos.y = Math.max(0, Math.min(100, currentPos.y));
+      // Strictly clamp coordinates with safe margin from image border
+      const half = activeElement === 'logo' ? logoHalfPct : (activeElement === 'number' ? badgeHalfPct : { w: 10, h: 5 });
+      const margin = 1.8;
+
+      currentPos.x = Math.max(half.w + margin, Math.min(100 - half.w - margin, currentPos.x));
+      currentPos.y = Math.max(half.h + margin, Math.min(100 - half.h - margin, currentPos.y));
 
       updateSetting(key, currentPos);
       if (activeElement === 'logo') updateSetting('isLogoPosManual', true);
@@ -245,12 +373,13 @@ export default function CanvasPreview() {
       let xPercent = ((clientX - rect.left) / rect.width) * 100;
       let yPercent = ((clientY - rect.top) / rect.height) * 100;
       
-      const halfW = (elRect.width / rect.width) * 100 / 2;
-      const halfH = (elRect.height / rect.height) * 100 / 2;
+      const halfW = (elRect.width / rect.width) * 50;
+      const halfH = (elRect.height / rect.height) * 50;
+      const margin = 1.8;
 
-      // Clamp so the element stays entirely within the image
-      xPercent = Math.max(halfW, Math.min(100 - halfW, xPercent));
-      yPercent = Math.max(halfH, Math.min(100 - halfH, yPercent));
+      // Strict clamp so the element stays entirely within the image with safety margin
+      xPercent = Math.max(halfW + margin, Math.min(100 - halfW - margin, xPercent));
+      yPercent = Math.max(halfH + margin, Math.min(100 - halfH - margin, yPercent));
 
       const pos = { x: xPercent, y: yPercent };
       dragPosRef.current = pos;
@@ -345,8 +474,9 @@ export default function CanvasPreview() {
     let x = (width * pos.x) / 100;
     let y = (height * pos.y) / 100;
 
-    x = Math.max(bgWidth / 2, Math.min(width - bgWidth / 2, x));
-    y = Math.max(bgHeight / 2, Math.min(height - bgHeight / 2, y));
+    const badgeMarginPx = Math.max(16, width * 0.018);
+    x = Math.max(bgWidth / 2 + badgeMarginPx, Math.min(width - bgWidth / 2 - badgeMarginPx, x));
+    y = Math.max(bgHeight / 2 + badgeMarginPx, Math.min(height - bgHeight / 2 - badgeMarginPx, y));
 
     ctx.beginPath();
     ctx.roundRect(x - bgWidth / 2, y - bgHeight / 2, bgWidth, bgHeight, currentRadius);
@@ -525,8 +655,9 @@ export default function CanvasPreview() {
           let lx = (canvas.width * currentSetting.logoPos.x) / 100;
           let ly = (canvas.height * currentSetting.logoPos.y) / 100;
 
-          lx = Math.max(logoW / 2, Math.min(canvas.width - logoW / 2, lx));
-          ly = Math.max(logoH / 2, Math.min(canvas.height - logoH / 2, ly));
+          const logoMarginPx = Math.max(16, canvas.width * 0.018);
+          lx = Math.max(logoW / 2 + logoMarginPx, Math.min(canvas.width - logoW / 2 - logoMarginPx, lx));
+          ly = Math.max(logoH / 2 + logoMarginPx, Math.min(canvas.height - logoH / 2 - logoMarginPx, ly));
 
           const currentEnableLogoShadow = currentSetting.enableLogoShadow ?? enableLogoShadow;
           if (currentEnableLogoShadow) {
@@ -578,23 +709,54 @@ export default function CanvasPreview() {
     }
   };
 
+  // Non-negotiable boundary protection: elements can NEVER extend outside image edges
+  const BORDER_MARGIN_PCT = 1.8;
+
+  // Safe clamping for Number Badge in DOM Preview
+  const safeBadgeMinX = badgeHalfPct.w + BORDER_MARGIN_PCT;
+  const safeBadgeMaxX = Math.max(safeBadgeMinX, 100 - badgeHalfPct.w - BORDER_MARGIN_PCT);
+  const safeBadgeMinY = badgeHalfPct.h + BORDER_MARGIN_PCT;
+  const safeBadgeMaxY = Math.max(safeBadgeMinY, 100 - badgeHalfPct.h - BORDER_MARGIN_PCT);
+
+  const rawNumberX = (activeElement === 'number' && localDragPos) ? localDragPos.x : currentSetting.numberPos.x;
+  const rawNumberY = (activeElement === 'number' && localDragPos) ? localDragPos.y : currentSetting.numberPos.y;
+
+  const displayBadgeX = Math.max(safeBadgeMinX, Math.min(safeBadgeMaxX, rawNumberX));
+  const displayBadgeY = Math.max(safeBadgeMinY, Math.min(safeBadgeMaxY, rawNumberY));
+
+  // Safe clamping for Brand Logo in DOM Preview
+  const curLogoSize = currentSetting?.logoSize ?? logoSize;
+  const estLogoHalfW = curLogoSize / 2;
+  const effLogoHalfW = Math.max(estLogoHalfW, logoHalfPct.w);
+  const effLogoHalfH = logoHalfPct.h > 0 ? logoHalfPct.h : (estLogoHalfW * (aspectRatio || 1));
+
+  const safeLogoMinX = effLogoHalfW + BORDER_MARGIN_PCT;
+  const safeLogoMaxX = Math.max(safeLogoMinX, 100 - effLogoHalfW - BORDER_MARGIN_PCT);
+  const safeLogoMinY = effLogoHalfH + BORDER_MARGIN_PCT;
+  const safeLogoMaxY = Math.max(safeLogoMinY, 100 - effLogoHalfH - BORDER_MARGIN_PCT);
+
+  const rawLogoX = (activeElement === 'logo' && localDragPos) ? localDragPos.x : currentSetting.logoPos.x;
+  const rawLogoY = (activeElement === 'logo' && localDragPos) ? localDragPos.y : currentSetting.logoPos.y;
+
+  const displayLogoX = Math.max(safeLogoMinX, Math.min(safeLogoMaxX, rawLogoX));
+  const displayLogoY = Math.max(safeLogoMinY, Math.min(safeLogoMaxY, rawLogoY));
 
   return (
-    <div className="flex-1 lg:h-full flex flex-col z-10 w-full overflow-hidden mt-6 lg:mt-0">
-      <div className="relative bg-gradient-to-br from-white/80 via-white/70 to-blue-50/60 backdrop-blur-2xl p-5 sm:p-7 rounded-[36px] shadow-[0_24px_64px_-12px_rgba(0,70,180,0.10)] border border-white/60 flex-1 flex flex-col transition-all h-full max-h-full overflow-hidden">
+    <div className="flex-1 min-h-[460px] sm:min-h-[540px] lg:min-h-0 lg:h-full flex flex-col z-10 w-full overflow-hidden mt-1 lg:mt-0">
+      <div className="relative bg-gradient-to-br from-white/80 via-white/70 to-blue-50/60 backdrop-blur-2xl p-4.5 sm:p-6 rounded-2xl shadow-[0_16px_48px_-12px_rgba(0,70,180,0.08)] border border-white/60 flex-1 flex flex-col transition-all h-full max-h-full overflow-hidden">
 
         {/* Decorative gradient blobs */}
         <div className="absolute -top-16 -right-16 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-5 shrink-0 relative z-10">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 shrink-0 relative z-10">
           <div>
-            <div className="flex items-center gap-3 mb-1.5">
-              <div className="w-2 h-7 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(0,113,227,0.4)]" />
-              <h2 className="text-2xl font-bold tracking-tight text-gray-900">লাইভ প্রিভিউ</h2>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-1.5 h-6 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(0,113,227,0.4)]" />
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">লাইভ প্রিভিউ</h2>
             </div>
-            <p className="text-xs font-medium text-gray-400 ml-5 flex items-center gap-1.5">
+            <p className="text-xs font-medium text-gray-400 ml-4.5 flex items-center gap-1.5">
               <span className="relative flex w-2 h-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -604,23 +766,23 @@ export default function CanvasPreview() {
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             {/* Undo / Redo Control Pill */}
-            <div className="flex items-center self-start sm:self-auto bg-white/80 p-1 rounded-2xl border border-gray-200/80 shadow-sm backdrop-blur-sm">
+            <div className="flex items-center self-start sm:self-auto bg-white/80 p-1 rounded-xl border border-gray-200/80 shadow-xs backdrop-blur-sm">
               <button
                 type="button"
                 onClick={undo}
                 disabled={!canUndo}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-not-allowed transition-all active:scale-95"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-not-allowed transition-all active:scale-95"
                 title="পূর্বাবস্থায় ফিরুন (Ctrl+Z)"
               >
                 <Undo2 className="w-3.5 h-3.5" />
                 <span className="hidden xl:inline">আনডু</span>
               </button>
-              <div className="w-[1px] h-4 bg-gray-200" />
+              <div className="w-[1px] h-3.5 bg-gray-200" />
               <button
                 type="button"
                 onClick={redo}
                 disabled={!canRedo}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-not-allowed transition-all active:scale-95"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-700 hover:text-blue-600 hover:bg-gray-100 disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:cursor-not-allowed transition-all active:scale-95"
                 title="পুনরায় করুন (Ctrl+Y)"
               >
                 <Redo2 className="w-3.5 h-3.5" />
@@ -631,7 +793,7 @@ export default function CanvasPreview() {
             <select
               value={downloadFormat}
               onChange={(e) => setDownloadFormat(e.target.value as 'jpeg' | 'png' | 'webp')}
-              className="px-4 py-3 bg-white/80 border border-gray-200/80 rounded-2xl text-sm font-semibold text-gray-600 outline-none focus:ring-2 focus:ring-blue-400/50 shadow-sm cursor-pointer hover:bg-white hover:border-blue-300 transition-all backdrop-blur-sm"
+              className="px-3.5 py-2 bg-white/80 border border-gray-200/80 rounded-xl text-xs font-semibold text-gray-600 outline-none focus:ring-2 focus:ring-blue-400/50 shadow-xs cursor-pointer hover:bg-white hover:border-blue-300 transition-all backdrop-blur-sm"
             >
               <option value="jpeg">.JPG — সেরা মান</option>
               <option value="png">.PNG — ট্রান্সপ্যারেন্ট</option>
@@ -640,7 +802,7 @@ export default function CanvasPreview() {
             <button
               onClick={downloadAll}
               disabled={isProcessing || previewUrls.length === 0}
-              className="relative flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl transition-all shadow-[0_4px_14px_rgba(0,113,227,0.35)] hover:shadow-[0_6px_20px_rgba(0,113,227,0.5)] hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 overflow-hidden group whitespace-nowrap"
+              className="relative flex items-center justify-center gap-2 px-4.5 py-2 bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm rounded-xl transition-all shadow-[0_4px_14px_rgba(0,113,227,0.3)] hover:shadow-[0_6px_18px_rgba(0,113,227,0.45)] hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 overflow-hidden group whitespace-nowrap"
             >
               <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Download className="w-4 h-4 shrink-0" strokeWidth={2.5} />
@@ -650,7 +812,7 @@ export default function CanvasPreview() {
         </div>
 
         {/* Preview Area */}
-        <div className="flex-1 bg-gradient-to-br from-gray-50/90 to-slate-100/80 rounded-[28px] border border-gray-200/60 flex flex-col items-center justify-center relative shadow-[inset_0_2px_12px_rgba(0,0,0,0.03)] h-full min-h-[400px] overflow-hidden">
+        <div className="flex-1 bg-gradient-to-br from-gray-50/90 to-slate-100/80 rounded-2xl border border-gray-200/60 flex flex-col items-center justify-center relative shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] h-full min-h-[400px] overflow-hidden">
 
           {/* Grid pattern background */}
           <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #4f46e5 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
@@ -659,33 +821,107 @@ export default function CanvasPreview() {
           {previewUrls.length > 0 && (
             <button
               onClick={() => setIsCropModalOpen(true)}
-              className="absolute top-5 right-5 z-20 flex items-center gap-2 px-4 py-2.5 bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-xl shadow-lg hover:bg-white hover:scale-105 hover:shadow-xl transition-all text-gray-700 hover:text-blue-600 font-semibold text-sm"
+              className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3.5 py-2 bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-xl shadow-md hover:bg-white hover:scale-105 hover:shadow-lg transition-all text-gray-700 hover:text-blue-600 font-semibold text-xs"
             >
-              <Crop className="w-4 h-4" />
+              <Crop className="w-3.5 h-3.5" />
               <span>ক্রপ করুন</span>
             </button>
           )}
 
-          {previewUrls.length === 0 ? (
-            <div className="relative z-10 flex flex-col items-center justify-center text-center p-8 animate-in fade-in duration-500 zoom-in-95">
-              <div className="w-24 h-24 mb-6 relative">
-                <div className="absolute inset-0 bg-blue-100/50 rounded-full blur-xl animate-pulse" />
-                <div className="relative w-full h-full bg-white border border-gray-100 shadow-xl rounded-3xl flex items-center justify-center rotate-3 hover:rotate-0 transition-transform duration-300">
-                  <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+          {!hasActiveImage ? (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsCanvasDragging(true); }}
+              onDragLeave={() => setIsCanvasDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsCanvasDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleUpload(Array.from(e.dataTransfer.files));
+                }
+              }}
+              className={`relative z-10 w-full max-w-2xl mx-auto p-6 sm:p-10 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center text-center backdrop-blur-xl ${
+                isCanvasDragging
+                  ? 'border-blue-500 bg-blue-50/80 shadow-[0_16px_48px_rgba(0,113,227,0.20)] scale-[1.01]'
+                  : 'border-blue-200/80 hover:border-blue-400/90 bg-white/70 hover:bg-white/90 shadow-[0_12px_36px_rgba(0,0,0,0.03)]'
+              }`}
+            >
+              {/* Hidden File Input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleUpload(Array.from(e.target.files));
+                  }
+                  e.target.value = '';
+                }}
+                className="hidden"
+              />
+
+              {/* Glowing Icon Orb */}
+              <div className="relative mb-5 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-500 to-sky-400 flex items-center justify-center text-white shadow-[0_10px_28px_rgba(0,113,227,0.30)] group-hover:scale-105 group-hover:shadow-[0_14px_36px_rgba(0,113,227,0.40)] transition-all duration-300">
+                  <Upload className="w-8 h-8 sm:w-10 sm:h-10 stroke-[2.2] animate-bounce" />
+                </div>
+                <div className="absolute -inset-2 rounded-full bg-blue-400/20 blur-xl -z-10 group-hover:bg-blue-400/30 transition-all" />
+              </div>
+
+              {/* Headline & Subtitle */}
+              <h3 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight mb-2">
+                ফার্নিচারের ছবি এখানে ড্রপ করুন
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-500 max-w-md mb-6 leading-relaxed font-medium">
+                কম্পিউটার থেকে ছবি টেনে আনুন অথবা নিচের বাটনে ক্লিক করে এক বা একাধিক ছবি নির্বাচন করুন
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-3 mb-6 w-full justify-center">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-[0_6px_18px_rgba(0,113,227,0.3)] hover:shadow-[0_8px_24px_rgba(0,113,227,0.4)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 stroke-[2.5]" />
+                  <span>ছবি নির্বাচন করুন (Browse)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={loadDemoSample}
+                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2.5 bg-white/90 hover:bg-white text-gray-700 hover:text-blue-600 font-bold text-xs sm:text-sm rounded-xl border border-gray-200/90 shadow-2xs hover:shadow-xs hover:border-blue-300 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>স্যাম্পল দিয়ে ট্রাই করুন</span>
+                </button>
+              </div>
+
+              {/* Feature Badges Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full pt-5 border-t border-gray-200/60">
+                <div className="flex flex-col items-center p-2.5 rounded-xl bg-white/60 border border-gray-100 shadow-2xs">
+                  <span className="text-sm mb-0.5">⚡</span>
+                  <span className="text-xs font-bold text-gray-800">বাল্ক এডিটর</span>
+                  <span className="text-[10px] text-gray-400">একাধিক ছবি এক ক্লিকে</span>
+                </div>
+                <div className="flex flex-col items-center p-2.5 rounded-xl bg-white/60 border border-gray-100 shadow-2xs">
+                  <span className="text-sm mb-0.5">🏷️</span>
+                  <span className="text-xs font-bold text-gray-800">অটো শোরুম লোগো</span>
+                  <span className="text-[10px] text-gray-400">১৭টি শোরুম প্রস্তুত</span>
+                </div>
+                <div className="flex flex-col items-center p-2.5 rounded-xl bg-white/60 border border-gray-100 shadow-2xs">
+                  <span className="text-sm mb-0.5">🎨</span>
+                  <span className="text-xs font-bold text-gray-800">স্মার্ট কালার ব্যাজ</span>
+                  <span className="text-[10px] text-gray-400">ছবি স্ক্যান করে ম্যাচিং</span>
+                </div>
+                <div className="flex flex-col items-center p-2.5 rounded-xl bg-white/60 border border-gray-100 shadow-2xs">
+                  <span className="text-sm mb-0.5">🔒</span>
+                  <span className="text-xs font-bold text-gray-800">কাস্টম জলছাপ</span>
+                  <span className="text-[10px] text-gray-400">ডায়াগোনাল ও গ্রিড</span>
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">স্টুডিও এখন ফাঁকা</h3>
-              <p className="text-sm text-gray-500 max-w-sm mb-6 leading-relaxed">
-                বাম পাশের প্যানেল থেকে আপনার ফার্নিচারের ছবি আপলোড করুন অথবা ড্র্যাগ-অ্যান্ড-ড্রপ করুন।
-              </p>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white/60 border border-gray-200 rounded-xl text-xs font-medium text-gray-600">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                হাই-কোয়ালিটি প্রসেসিং রেডি
-              </div>
             </div>
-          ) : currentSetting ? (
+          ) : (
             <div className="flex flex-col items-center w-full h-full relative">
               
               {/* Zoom Controls Overlay */}
@@ -728,7 +964,7 @@ export default function CanvasPreview() {
                   className="flex items-center justify-center m-auto transition-transform w-full h-full"
                   style={{
                     transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
-                    transition: isPanningRef.current ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                    transition: isPanning ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)'
                   }}
                 >
                   <div
@@ -741,7 +977,7 @@ export default function CanvasPreview() {
                       aspectRatio: aspectRatio ? `${aspectRatio}` : 'auto',
                       transform: `scale(${zoomScale})`,
                       transformOrigin: zoomOrigin,
-                      transition: isPanningRef.current ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                      transition: isPanning ? 'none' : 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)'
                     }}
                   >
                   <img
@@ -825,10 +1061,11 @@ export default function CanvasPreview() {
                   {/* DOM Number Preview Layer */}
                   {(currentSetting?.numberText ?? numberText) && (
                     <div
+                      ref={numberBadgeRef}
                       className={`absolute cursor-move pointer-events-auto rounded ${activeElement === 'number' ? 'ring-2 ring-blue-500 border border-dashed border-blue-400' : 'hover:ring-2 hover:ring-blue-500'}`}
                       style={{
-                        left: `${(activeElement === 'number' && localDragPos) ? localDragPos.x : currentSetting.numberPos.x}%`,
-                        top: `${(activeElement === 'number' && localDragPos) ? localDragPos.y : currentSetting.numberPos.y}%`,
+                        left: `${displayBadgeX}%`,
+                        top: `${displayBadgeY}%`,
                         transform: 'translate3d(-50%, -50%, 0)',
                         willChange: (activeElement === 'number' && localDragPos) ? 'left, top, transform' : 'auto',
                         transition: (activeElement === 'number' && localDragPos) ? 'none' : 'box-shadow 0.15s ease',
@@ -875,10 +1112,11 @@ export default function CanvasPreview() {
                   {/* DOM Logo Preview Layer */}
                   {(currentSetting?.logoUrl || logoUrl) && (
                     <div
+                      ref={logoRef}
                       className={`absolute cursor-move pointer-events-auto rounded ${activeElement === 'logo' ? 'ring-2 ring-blue-500 border border-dashed border-blue-400' : 'hover:ring-2 hover:ring-blue-500'}`}
                       style={{
-                        left: `${(activeElement === 'logo' && localDragPos) ? localDragPos.x : currentSetting.logoPos.x}%`,
-                        top: `${(activeElement === 'logo' && localDragPos) ? localDragPos.y : currentSetting.logoPos.y}%`,
+                        left: `${displayLogoX}%`,
+                        top: `${displayLogoY}%`,
                         transform: 'translate3d(-50%, -50%, 0)',
                         willChange: (activeElement === 'logo' && localDragPos) ? 'left, top, transform' : 'auto',
                         transition: (activeElement === 'logo' && localDragPos) ? 'none' : 'box-shadow 0.15s ease',
@@ -937,17 +1175,6 @@ export default function CanvasPreview() {
                   <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
-
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-4 text-center p-8">
-              <div className="w-20 h-20 rounded-3xl bg-blue-50 flex items-center justify-center shadow-inner">
-                <svg className="w-10 h-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 21h18M3 3h18" />
-                </svg>
-              </div>
-              <p className="text-base font-semibold text-gray-400">ছবি আপলোড করুন</p>
-              <p className="text-xs text-gray-300">বেসিক ট্যাব থেকে ফার্নিচারের ছবি যোগ করুন</p>
             </div>
           )}
         </div>
@@ -961,6 +1188,19 @@ export default function CanvasPreview() {
           onSave={handleCropSave}
         />
       )}
+
+      {/* Dynamic Image Import & Arranging Animation Overlay */}
+      <ImageProcessingOverlay
+        isVisible={isProcessing}
+        title="ছবিগুলো গুছিয়ে প্রস্তুত করা হচ্ছে..."
+        subtitle={processingStepText || "খালি জায়গা স্ক্যান করে লোগো ও নম্বর নিখুঁত পজিশনে সাজানো হচ্ছে"}
+        progress={processingProgress}
+        totalImages={mainImages.length}
+        processedCount={processedCount}
+        remainingCount={remainingCount}
+        estimatedSeconds={estimatedSeconds}
+        currentFileName={currentProcessingFile}
+      />
     </div>
   );
 }

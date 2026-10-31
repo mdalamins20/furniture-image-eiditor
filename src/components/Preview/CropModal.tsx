@@ -115,7 +115,7 @@ export default function CropModal({ imageUrl, onClose, onSave }: CropModalProps)
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-neutral-900 flex flex-col rounded-[28px] overflow-hidden w-full max-w-6xl max-h-[95vh] shadow-2xl ring-1 ring-white/10">
+      <div className="bg-neutral-900 flex flex-col rounded-2xl overflow-hidden w-full max-w-6xl max-h-[95vh] shadow-2xl ring-1 ring-white/10">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-neutral-800/50 shrink-0">

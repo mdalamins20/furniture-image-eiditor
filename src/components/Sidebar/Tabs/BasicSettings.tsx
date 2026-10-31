@@ -1,16 +1,16 @@
 import React, { useCallback, useState } from 'react';
 import { ImageIcon, Upload, Store } from 'lucide-react';
 import { useEditorContext } from '../../../context/EditorContext';
-import { SHOWROOMS } from '../../../types';
-import { analyzeImageForEmptySpace } from '../../../utils/imageAnalyzer';
+import type { ShowroomItem } from '../../../types';
 
 export default function BasicSettings() {
   const {
-    mainImages, setMainImages,
-    setPreviewUrls,
+    showrooms,
+    mainImages,
+    handleUpload,
     imageSettings, setImageSettings,
     setSelectedShowroom,
-    previewIndex, setPreviewIndex, setSelectedIndices, selectedIndices
+    previewIndex, selectedIndices
   } = useEditorContext();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -18,79 +18,18 @@ export default function BasicSettings() {
   const handleMainImagesUpload = useCallback((e: React.ChangeEvent<HTMLInputElement> | { target: { files: FileList } }) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      
-      const newUrls = files.map(file => URL.createObjectURL(file));
-
-      setPreviewUrls(prev => {
-        prev.forEach(url => URL.revokeObjectURL(url));
-        return newUrls;
-      });
-
-      setMainImages(() => {
-        setPreviewIndex(0);
-        setSelectedIndices(new Set([0]));
-
-        let firstMatchedForUpload: any = undefined;
-        const newSettings = files.map((file) => {
-          const fName = file.name.toLowerCase().replace(/\.[^/.]+$/, "").trim();
-          let matchedShowroom = undefined;
-          if (fName.length >= 3) {
-            matchedShowroom = SHOWROOMS.find(s => s.name.toLowerCase().trim() === fName);
-            if (!matchedShowroom) {
-              const fNameStripped = fName.replace(/\s*\(\d+\)\s*$/, "").trim();
-              if (fNameStripped !== fName && fNameStripped.length >= 3) {
-                matchedShowroom = SHOWROOMS.find(s => s.name.toLowerCase().trim() === fNameStripped);
-              }
-            }
-          }
-
-          const baseSetting: any = {
-            logoPos: { x: 10, y: 10 },
-            numberPos: { x: 50, y: 85 },
-            watermarkPos: { x: 50, y: 50 },
-            isLogoPosManual: false,
-            isNumberPosManual: false,
-            isWatermarkPosManual: false,
-          };
-          
-          if (matchedShowroom) {
-             baseSetting.assignedShowroom = matchedShowroom;
-             baseSetting.numberText = matchedShowroom.numbers;
-             baseSetting.logoUrl = `/logos/${matchedShowroom.file}`;
-          }
-          
-          return baseSetting;
-        });
-        setImageSettings(newSettings);
-        if (firstMatchedForUpload) setSelectedShowroom(firstMatchedForUpload.name);
-
-        Promise.all(files.map(f => analyzeImageForEmptySpace(f))).then(positions => {
-            setImageSettings(currSettings => {
-                const updatedSettings = [...currSettings];
-                for (let i = 0; i < positions.length; i++) {
-                    if (updatedSettings[i]) {
-                        updatedSettings[i] = {
-                            ...updatedSettings[i],
-                            logoPos: positions[i].logoPos,
-                            numberPos: positions[i].numberPos
-                        };
-                    }
-                }
-                return updatedSettings;
-            });
-        });
-
-        return files;
-      });
+      if (files.length > 0) {
+        handleUpload(files);
+      }
     }
     if ('value' in e.target) {
       e.target.value = '';
     }
-  }, [setMainImages, setPreviewUrls, setImageSettings, setSelectedShowroom, setPreviewIndex, setSelectedIndices]);
+  }, [handleUpload]);
 
   const handleShowroomChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    const showroom = SHOWROOMS.find(s => s.name === value);
+    const showroom = showrooms.find((s: ShowroomItem) => s.name === value);
     if (!showroom) return;
 
     const isAllSelected = selectedIndices.size > 0 && selectedIndices.size === mainImages.length;
@@ -103,7 +42,7 @@ export default function BasicSettings() {
           ...setting,
           assignedShowroom: showroom,
           numberText: showroom.numbers,
-          logoUrl: `/logos/${showroom.file}`
+          logoUrl: showroom.logoUrl || (showroom.file ? `/logos/${showroom.file}` : '')
         };
       });
       setImageSettings(newSettings);
@@ -116,18 +55,18 @@ export default function BasicSettings() {
           ...newSettings[idx],
           assignedShowroom: showroom,
           numberText: showroom.numbers,
-          logoUrl: `/logos/${showroom.file}`
+          logoUrl: showroom.logoUrl || (showroom.file ? `/logos/${showroom.file}` : '')
         };
       });
       setImageSettings(newSettings);
       setSelectedShowroom(value);
     }
-  }, [selectedIndices, mainImages.length, setSelectedShowroom, imageSettings, setImageSettings]);
+  }, [selectedIndices, mainImages.length, setSelectedShowroom, imageSettings, setImageSettings, showrooms]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
       {/* Main Images Upload */}
-      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
         <h2 className="text-lg font-medium mb-4 flex items-center gap-3 text-[#1d1d1f]">
           <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shadow-black/5"><ImageIcon className="w-5 h-5" /></div>
           ফার্নিচারের ছবি আপলোড
@@ -157,13 +96,23 @@ export default function BasicSettings() {
       </div>
 
       {/* Showroom Selection Dropdown */}
-      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-[28px] shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] relative overflow-hidden group">
+      <div className="bg-white/60 backdrop-blur-2xl p-6 rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-white/40 transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] relative overflow-hidden group">
         <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 transition-all opacity-80 group-hover:opacity-100"></div>
         <h2 className="text-lg font-medium mb-1 flex items-center gap-3 text-[#1d1d1f] ml-1">
           <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shadow-black/5"><Store className="w-5 h-5" /></div>
           শোরুম প্রিসেট
         </h2>
         <p className="text-xs text-[#86868b] mb-5 ml-14 font-medium">নাম সিলেক্ট করলে লোগো ও নাম্বার অটো-সেট হবে।</p>
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate-module', { detail: 'profile' }))}
+            className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg border border-red-200 transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>+ শোরুম ম্যানেজার (প্রোফাইল)</span>
+          </button>
+        </div>
         <div className="relative">
           <select
             value={imageSettings[previewIndex]?.assignedShowroom?.name || ""}
@@ -172,7 +121,7 @@ export default function BasicSettings() {
             style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em' }}
           >
             <option value="">-- শোরুম সিলেক্ট করুন --</option>
-            {SHOWROOMS.map(showroom => (
+            {showrooms.map((showroom: ShowroomItem) => (
               <option key={showroom.name} value={showroom.name}>{showroom.name}</option>
             ))}
           </select>
