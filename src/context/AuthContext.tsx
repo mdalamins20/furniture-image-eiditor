@@ -61,7 +61,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           '1. Firebase Console > Authentication > Settings > Authorized domains-এ যান।\n' +
           `2. "${window.location.hostname}" ডোমেনটি যুক্ত করুন।`
         );
-      } else if (error?.code !== 'auth/popup-closed-by-user') {
+      } else if (
+        error?.code !== 'auth/popup-closed-by-user' && 
+        error?.code !== 'auth/cancelled-popup-request'
+      ) {
         alert(`গুগল সাইন-ইন ব্যর্থ হয়েছে: ${error?.message || 'অজানা ত্রুটি'}`);
       }
     }
