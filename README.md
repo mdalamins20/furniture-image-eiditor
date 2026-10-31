@@ -1,32 +1,46 @@
-# React + TypeScript + Vite
+# Furniture Image Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript + Vite + Tailwind furniture image branding studio for
+Dewan Furniture product photos: add showroom logo, phone-number badge,
+watermark, price and cards for Facebook posts / boost ads.
 
-Currently, two official plugins are available:
+Modules: Hub, Daily Post Editor, Photo Card Studio, Boost Ads, Profile /
+Showroom Manager.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Run
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm ci
+npm run dev        # local development
+npm run build      # tsc + vite build
+npm run lint       # oxlint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Environment (.env, never commit real keys)
+
+Copy `.env.example` to `.env` and fill in your own values:
+
+- Firebase: `VITE_FIREBASE_*` — if these are missing the app runs in
+  local-only mode; there is no demo project any more.
+- Cloudinary: `VITE_CLOUDINARY_CLOUD_NAME`, `VITE_CLOUDINARY_UPLOAD_PRESET`
+  — use an unsigned preset restricted in the Cloudinary dashboard
+  (allowed formats JPG/PNG/WebP, max 10 MB, folder restriction).
+  The app also validates type and size before uploading.
+- Gemini: `VITE_GEMINI_API_KEY` — optional, only for AI placement.
+  The key is sent in a request header, never in the URL and never stored
+  in localStorage. Note: a `VITE_` key is still visible in the browser
+  bundle, so production use should move Gemini behind a server proxy.
+
+## Deploy
+
+- `firestore.rules` and `storage.rules` in this repo must be deployed to
+  Firebase (`firebase deploy --only firestore:rules,storage`) — owner-only
+  access, no public writes.
+- The app is an SPA; `vercel.json` contains the SPA rewrite.
+
+## Notes
+
+- Prices are never invented: if a filename contains no price, the price
+  field is left blank for the user to type.
+- A cut price is a manual/auto markup field; the app does not claim a
+  "fake regular price" as a real MRP — use a real MRP field when one exists.

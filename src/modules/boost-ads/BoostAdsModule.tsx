@@ -672,9 +672,13 @@ export default function BoostAdsModule() {
       const url = URL.createObjectURL(file);
       const detectedPrice = parsePriceFromFilename(file.name);
       const generatedModel = generateModelNumber(startModelInput, idx);
-      const actualPrice = detectedPrice || '25,000/-';
+      // Never invent a price: if the filename has no price, leave it blank
+      // for the user to type (the old code silently used 25,000/-).
+      const actualPrice = detectedPrice || '';
       const numericVal = extractNumericPrice(actualPrice);
-      const autoCut = formatBdNumber(calculateAutoCutPrice(numericVal, customLowMarkup, customMidMarkup, customHighMarkup));
+      const autoCut = detectedPrice
+        ? formatBdNumber(calculateAutoCutPrice(numericVal, customLowMarkup, customMidMarkup, customHighMarkup))
+        : '';
 
       newItems.push({
         id: `${file.name}-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1250,10 +1254,14 @@ export default function BoostAdsModule() {
     setIsProcessing(true);
     try {
       const exportCanvas = document.createElement('canvas');
-      await renderAdCanvas(exportCanvas, activeImage, activeShowroom, {
+      const rendered = await renderAdCanvas(exportCanvas, activeImage, activeShowroom, {
         ...canvasOptions,
         isExporting: true
       });
+      if (!rendered) {
+        alert('ছবি লোড করা যায়নি বলে এক্সপোর্ট করা হয়নি। ছবিটি আবার আপলোড করে চেষ্টা করুন।');
+        return;
+      }
       const blob = await new Promise<Blob | null>((resolve) => {
         exportCanvas.toBlob(resolve, 'image/jpeg', 0.95);
       });
@@ -1303,6 +1311,7 @@ export default function BoostAdsModule() {
       }
     }
 
+    const failedBulkExports: string[] = [];
     setIsProcessing(true);
     setBatchProgress({ current: 0, total: images.length });
 
@@ -1316,13 +1325,17 @@ export default function BoostAdsModule() {
           const item = images[i];
           setBatchProgress({ current: i + 1, total: images.length });
 
-          await renderAdCanvas(offscreenCanvas, item, activeShowroom, {
+          const rendered = await renderAdCanvas(offscreenCanvas, item, activeShowroom, {
             ...canvasOptions,
             cardPos: item.cardPos || cardPos,
             logoPos: item.logoPos || logoPos,
             pricePos: item.pricePos || pricePos,
             isExporting: true
           });
+          if (!rendered) {
+            failedBulkExports.push(item.name);
+            continue;
+          }
 
           const blob = await new Promise<Blob | null>((resolve) => {
             offscreenCanvas.toBlob(resolve, 'image/jpeg', 0.95);
@@ -1339,6 +1352,9 @@ export default function BoostAdsModule() {
         }
 
         alert(`সফলভাবে "${activeShowroom.name}" ফোল্ডারে ${images.length}টি ছবি সেভ হয়েছে!`);
+        if (failedBulkExports.length > 0) {
+          alert(`এই ছবিগুলো লোড করা যায়নি বলে সেভ হয়নি: ${failedBulkExports.join(', ')}`);
+        }
       } else {
         // Fallback for network IP (e.g. http://192.168... where Chrome locks showDirectoryPicker)
         // Or if directory picker is not supported:
@@ -1351,13 +1367,17 @@ export default function BoostAdsModule() {
           const item = images[i];
           setBatchProgress({ current: i + 1, total: images.length });
 
-          await renderAdCanvas(offscreenCanvas, item, activeShowroom, {
+          const rendered = await renderAdCanvas(offscreenCanvas, item, activeShowroom, {
             ...canvasOptions,
             cardPos: item.cardPos || cardPos,
             logoPos: item.logoPos || logoPos,
             pricePos: item.pricePos || pricePos,
             isExporting: true
           });
+          if (!rendered) {
+            failedBulkExports.push(item.name);
+            continue;
+          }
 
           const blob = await new Promise<Blob | null>((resolve) => {
             offscreenCanvas.toBlob(resolve, 'image/jpeg', 0.95);
@@ -1369,6 +1389,9 @@ export default function BoostAdsModule() {
           }
         }
 
+        if (failedBulkExports.length > 0) {
+          alert(`এই ছবিগুলো লোড করা যায়নি বলে ZIP-এ আসেনি: ${failedBulkExports.join(', ')}`);
+        }
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const downloadUrl = URL.createObjectURL(zipBlob);
         const link = document.createElement('a');

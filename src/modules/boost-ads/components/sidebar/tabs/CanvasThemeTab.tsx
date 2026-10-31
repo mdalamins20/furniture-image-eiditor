@@ -96,8 +96,8 @@ export const CanvasThemeTab: React.FC<CanvasThemeTabProps> = ({
   onApplyCardPosToAll,
   selectedElement,
   onSelectCardElement,
-  cardTheme: _unusedCardTheme,
-  onSelectCardTheme: _unusedOnSelectCardTheme,
+  cardTheme,
+  onSelectCardTheme,
   minimalTextColor: _unusedMinimalTextColor,
   onSelectMinimalTextColor: _unusedOnSelectMinimalTextColor,
   cardScale,
@@ -159,6 +159,36 @@ export const CanvasThemeTab: React.FC<CanvasThemeTabProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* 0. কার্ড থিম — previously this prop was discarded, so the theme
+          selector did nothing and the canvas never used cardTheme. */}
+      <div className="bg-white/90 backdrop-blur-xl p-3.5 rounded-xl border border-gray-200/80 shadow-xs space-y-2">
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">
+          কার্ড থিম
+        </span>
+        <div className="flex bg-gray-100 p-1 rounded-xl gap-1 flex-wrap">
+          {([
+            ['dark-glass', 'ডার্ক গ্লাস'],
+            ['luxury-gold', 'লাক্সারি গোল্ড'],
+            ['clean-white', 'ক্লিন হোয়াইট'],
+            ['brand-blue', 'ব্র্যান্ড ব্লু'],
+            ['minimal-transparent', 'মিনিমাল'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onSelectCardTheme(value)}
+              className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap ${
+                cardTheme === value
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-400">মিনিমাল বাদে প্রতিটি থিম কার্ডের ব্যাকগ্রাউন্ড ও টেক্সট রং নির্ধারণ করে।</p>
+      </div>
       {/* 1. ব্যাজ প্রদর্শন স্টাইল (ভরাট, স্বচ্ছ, আউটলাইন + কালার পিকার) */}
       <div className="bg-white/90 backdrop-blur-xl p-3.5 rounded-xl border border-gray-200/80 shadow-xs space-y-3">
         <div className="space-y-1.5">

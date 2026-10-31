@@ -82,6 +82,11 @@ export function getCachedImage(src: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      // Bounded cache: previously the module-level Map grew forever.
+      if (imageCache.size >= 200) {
+        const oldest = imageCache.keys().next().value;
+        if (oldest) imageCache.delete(oldest);
+      }
       imageCache.set(src, img);
       loadingPromises.delete(src);
       resolve(img);
@@ -116,9 +121,9 @@ export async function renderAdCanvas(
   imageItem: AdImageItem, 
   showroom: typeof SHOWROOMS[0],
   options: CanvasRenderOptions
-): Promise<void> {
+): Promise<boolean> {
   const ctx = targetCanvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return false;
 
   const mergedOptions: CanvasRenderOptions = {
     ...options,
@@ -129,7 +134,7 @@ export async function renderAdCanvas(
   };
 
   const {
-    cardPos, logoPos, pricePos, selectedElement,
+    cardPos, logoPos, pricePos, selectedElement, cardTheme,
     cardScale, cardOpacity, fontFamily,
     showShowroomName, showLogo, logoSize,
     enableSeparatePrice, priceScale, priceBadgeStyle,
@@ -185,7 +190,7 @@ export async function renderAdCanvas(
     img = await getCachedImage(imageItem.url);
   } catch (err) {
     console.warn('Failed to load main image from URL:', imageItem.url, err);
-    return;
+    return false;
   }
 
   // Only resize canvas if dimensions actually changed to prevent GPU context teardown
@@ -382,8 +387,17 @@ export async function renderAdCanvas(
   // -------------------------------------------------------------
   // CARD THEME & BADGE DISPLAY STYLING (Solid, Transparent, Outline)
   // -------------------------------------------------------------
-  const bgCol = customBgColor || '#18181B';
-  const textCol = customTextColor || '#FFFFFF';
+  // cardTheme was previously discarded by the theme tab: it now drives the
+  // card colours, unless the user picks minimal-transparent (custom colours).
+  const CARD_THEME_PRESETS: Record<string, { bg: string; text: string }> = {
+    'dark-glass': { bg: '#18181B', text: '#FFFFFF' },
+    'luxury-gold': { bg: '#3B2A12', text: '#FDE68A' },
+    'clean-white': { bg: '#FFFFFF', text: '#111827' },
+    'brand-blue': { bg: '#1E40AF', text: '#FFFFFF' },
+  };
+  const themePreset = cardTheme ? CARD_THEME_PRESETS[cardTheme] : undefined;
+  const bgCol = themePreset?.bg || customBgColor || '#18181B';
+  const textCol = themePreset?.text || customTextColor || '#FFFFFF';
 
   // Check if text is dark (e.g. black text on yellow/white background)
   const isDarkText = (
@@ -752,4 +766,5 @@ export async function renderAdCanvas(
       price: outPriceBox
     });
   }
+  return true;
 }

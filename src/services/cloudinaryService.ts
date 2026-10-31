@@ -8,7 +8,16 @@ export const isCloudinaryConfigured = Boolean(
   import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 );
 
+const ALLOWED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
 export const uploadToCloudinary = async (file: File): Promise<string> => {
+  if (!ALLOWED_UPLOAD_TYPES.includes(file.type)) {
+    throw new Error('শুধু JPG, PNG বা WebP ছবি আপলোড করা যাবে');
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error('ছবির সাইজ ১০ MB-এর বেশি হতে পারবে না');
+  }
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME?.trim();
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET?.trim();
 

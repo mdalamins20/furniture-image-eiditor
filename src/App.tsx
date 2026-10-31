@@ -1,14 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import ErrorBoundary from './components/Common/ErrorBoundary';
 import AppHeader from './components/Header/AppHeader';
 import AppHub from './components/Hub/AppHub';
-import DailyPostModule from './modules/daily-post/DailyPostModule';
-import PhotoCardModule from './modules/photo-card/PhotoCardModule';
-import BoostAdsModule from './modules/boost-ads/BoostAdsModule';
-import ProfileModule from './modules/profile/ProfileModule';
+// Lazy-loaded: previously every module was bundled into one 1.2 MB chunk.
+const DailyPostModule = lazy(() => import('./modules/daily-post/DailyPostModule'));
+const PhotoCardModule = lazy(() => import('./modules/photo-card/PhotoCardModule'));
+const BoostAdsModule = lazy(() => import('./modules/boost-ads/BoostAdsModule'));
+const ProfileModule = lazy(() => import('./modules/profile/ProfileModule'));
+
 import { AuthProvider } from './context/AuthContext';
 import { AuthModal } from './components/Auth/AuthModal';
 import { subscribeShowrooms } from './services/showroomService';
 import { SHOWROOMS, type ShowroomItem, type AppModuleType } from './types';
+
+const ModuleFallback = () => (
+  <div className="flex-1 flex items-center justify-center p-6 text-sm text-gray-500">মডিউল লোড হচ্ছে…</div>
+);
 
 function AppContent() {
   const [currentModule, setCurrentModule] = useState<AppModuleType>('hub');
@@ -53,25 +60,25 @@ function AppContent() {
 
         {currentModule === 'daily-post' && (
           <div className="flex-1 w-full p-1 sm:p-2 lg:p-4 xl:p-6 flex flex-col overflow-y-auto lg:overflow-hidden custom-scrollbar">
-            <DailyPostModule />
+            <ErrorBoundary moduleName="daily-post"><Suspense fallback={<ModuleFallback />}><DailyPostModule /></Suspense></ErrorBoundary>
           </div>
         )}
 
         {currentModule === 'photo-card' && (
           <div className="flex-1 w-full p-1 sm:p-2 lg:p-4 xl:p-6 flex flex-col overflow-y-auto lg:overflow-hidden custom-scrollbar">
-            <PhotoCardModule />
+            <ErrorBoundary moduleName="photo-card"><Suspense fallback={<ModuleFallback />}><PhotoCardModule /></Suspense></ErrorBoundary>
           </div>
         )}
 
         {currentModule === 'boost-ads' && (
           <div className="flex-1 w-full p-1 sm:p-2 lg:p-4 xl:p-6 flex flex-col overflow-y-auto lg:overflow-hidden custom-scrollbar">
-            <BoostAdsModule />
+            <ErrorBoundary moduleName="boost-ads"><Suspense fallback={<ModuleFallback />}><BoostAdsModule /></Suspense></ErrorBoundary>
           </div>
         )}
 
         {currentModule === 'profile' && (
           <div className="flex-1 w-full overflow-y-auto custom-scrollbar p-2 sm:p-4">
-            <ProfileModule onBackToStudio={(mod) => setCurrentModule(mod || 'hub')} />
+            <ErrorBoundary moduleName="profile"><Suspense fallback={<ModuleFallback />}><ProfileModule onBackToStudio={(mod) => setCurrentModule(mod || 'hub')} /></Suspense></ErrorBoundary>
           </div>
         )}
       </main>

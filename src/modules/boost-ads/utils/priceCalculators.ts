@@ -17,8 +17,9 @@ export function normalizeDigitsToEnglish(str: string): string {
 export function extractNumericPrice(priceStr: string): number {
   if (!priceStr) return 0;
   const normalized = normalizeDigitsToEnglish(priceStr);
-  const cleaned = normalized.replace(/[^0-9]/g, '');
-  const val = parseInt(cleaned, 10);
+  // Keep the decimal point: "25.5" is 25,500, not 255,000.
+  const cleaned = normalized.replace(/,/g, '').replace(/[^0-9.]/g, '');
+  const val = parseFloat(cleaned);
   if (isNaN(val)) return 0;
   if (val < 1000 && val > 0) return val * 1000;
   return val;
@@ -67,18 +68,19 @@ export function calculateAutoCutPrice(
 ): number {
   if (actualAmount <= 0) return 0;
 
+  // Smooth interpolation at tier boundaries: the old step tiers made
+  // 22,000 -> 26,000 but 23,000 -> 33,000 (a 7,000 jump for 1,000 more).
   let markup = customLow;
   if (actualAmount <= 22000) {
     // Matches Sir's screenshot: 19,000 -> 23,000 (+4,000)
     markup = 4000;
   } else if (actualAmount <= 35000) {
-    // 30,000 -> 38,000 to 42,000 (default 10,000 markup -> 40,000)
-    markup = customLow;
+    markup = 4000 + ((actualAmount - 22000) / (35000 - 22000)) * (customLow - 4000);
   } else if (actualAmount <= 75000) {
-    // 60,000 - 70,000 -> +12,000 to 13,000 (default 12,500)
     markup = customMid;
+  } else if (actualAmount <= 85000) {
+    markup = customMid + ((actualAmount - 75000) / (85000 - 75000)) * (customHigh - customMid);
   } else {
-    // 80,000 to 1 lac+ -> +15,000 to 18,000 (default 16,000)
     markup = customHigh;
   }
 
@@ -161,6 +163,9 @@ export function parsePriceFromFilename(filename: string): string {
   
   // Search from the end backwards, because prices are typically placed at the end of filenames
   for (let i = tokenMatches.length - 1; i >= 0; i--) {
+    // Skip model/code numbers: "model 101" is a model, not a 101,000 price.
+    const before = name.slice(0, tokenMatches[i].index ?? 0).trimEnd().toLowerCase();
+    if (/(model|code|m-|mdl)$/.test(before)) continue;
     const rawToken = tokenMatches[i][1];
     const num = parseFloat(rawToken.replace('_', '.'));
     // Valid furniture price range in thousands: 5 to 499 (i.e. 5,000 to 4,99,000 BDT)

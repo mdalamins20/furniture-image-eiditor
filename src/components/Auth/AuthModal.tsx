@@ -41,8 +41,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setError(null);
     setIsSubmitting(true);
     try {
-      await signInWithGoogle();
-      onClose();
+      const ok = await signInWithGoogle();
+      if (ok) onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'গুগল লগইনে সমস্যা হয়েছে';
       setError(msg);

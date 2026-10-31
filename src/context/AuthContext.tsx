@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<boolean>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, displayName?: string) => Promise<void>;
   signOutUser: () => Promise<void>;
@@ -47,10 +47,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signInWithGoogle = async () => {
     if (!isFirebaseConfigured) {
       alert('Firebase credentials are not configured in .env yet.');
-      return;
+      return false;
     }
     try {
       await signInWithPopup(auth, googleProvider);
+      return true;
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
       console.error('Google Sign-in failed:', error);
@@ -64,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else if (error?.code !== 'auth/popup-closed-by-user') {
         alert(`গুগল সাইন-ইন ব্যর্থ হয়েছে: ${error?.message || 'অজানা ত্রুটি'}`);
       }
+      return false;
     }
   };
 

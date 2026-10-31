@@ -53,15 +53,15 @@ const TEMPLATES: CardTemplate[] = [
 ];
 
 export default function PhotoCardModule() {
-  const [imageSrc, setImageSrc] = useState<string | null>('/placeholder.jpg');
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<CardTemplate>(TEMPLATES[0]);
   const [productTitle, setProductTitle] = useState('রয়েল ডাইনিং সেট (৬ সিটার)');
   const [material, setMaterial] = useState('১০০% খাঁটি চিটাগাং সেগুন কাঠ');
   const [warranty, setWarranty] = useState('১৫ বছরের সার্ভিস গ্যারান্টি');
   const [productCode, setProductCode] = useState('CODE: RDS-2026');
   const [price, setPrice] = useState('৳ ১,২৫,০০০');
-  const [contactNumber, setContactNumber] = useState('01873-728219');
-  const [selectedShowroom, setSelectedShowroom] = useState(SHOWROOMS[0].name);
+  const [contactNumber, setContactNumber] = useState('');
+  const [selectedShowroom, setSelectedShowroom] = useState(SHOWROOMS[0]?.name ?? '');
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStepText, setUploadStepText] = useState('');
@@ -94,7 +94,8 @@ export default function PhotoCardModule() {
       }, 150);
     };
     img.onerror = () => {
-      setImageSrc(url);
+      // Do not keep a broken image: a broken URL used to produce a blank card.
+      URL.revokeObjectURL(url);
       setIsProcessing(false);
     };
     img.src = url;
@@ -416,6 +417,9 @@ export default function PhotoCardModule() {
                 onChange={(e) => setSelectedShowroom(e.target.value)}
                 className="w-full mt-1 px-2.5 py-1.5 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-500 cursor-pointer"
               >
+                {SHOWROOMS.length === 0 && (
+                  <option value="">শোরুম নেই — প্রোফাইলে যোগ করুন</option>
+                )}
                 {SHOWROOMS.map(s => (
                   <option key={s.name} value={s.name}>{s.name}</option>
                 ))}

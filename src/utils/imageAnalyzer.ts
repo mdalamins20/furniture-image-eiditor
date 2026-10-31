@@ -7,19 +7,17 @@
 const DEFAULT_GEMINI_KEY = '';
 
 export const getGeminiApiKey = (): string => {
-  return (
-    localStorage.getItem('furniture_gemini_api_key') ||
-    (import.meta.env.VITE_GEMINI_API_KEY as string) ||
-    DEFAULT_GEMINI_KEY
-  );
+  // Keys come from the build-time env only. Never store a user-typed API
+  // key in localStorage, and never put it in the request URL.
+  // Note: a VITE_ key is still visible in the browser bundle, so for
+  // production this call should move behind a server-side proxy.
+  return (import.meta.env.VITE_GEMINI_API_KEY as string) || DEFAULT_GEMINI_KEY;
 };
 
 export const setGeminiApiKey = (key: string): void => {
-  if (key.trim()) {
-    localStorage.setItem('furniture_gemini_api_key', key.trim());
-  } else {
-    localStorage.removeItem('furniture_gemini_api_key');
-  }
+  // Deprecated no-op kept for callers: typing a key into the browser no
+  // longer saves it to localStorage. Use VITE_GEMINI_API_KEY in .env.
+  void key;
 };
 
 export interface PlacementDetectionResult {
@@ -81,13 +79,13 @@ Return ONLY a valid JSON object:
     // Loop through lowest-cost models first to save user credits
     for (const model of LOW_COST_MODELS) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
 
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify({
             contents: [
               {

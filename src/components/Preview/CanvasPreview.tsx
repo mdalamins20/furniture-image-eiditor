@@ -23,12 +23,12 @@ export default function CanvasPreview() {
     watermarkTextDecoration, watermarkTextTransform, watermarkLetterSpacing,
     watermarkCustomAngle, watermarkIsGrid, watermarkGridSpacing,
     brightness, contrast, saturation, warmth,
+    downloadFormat, setDownloadFormat,
     selectedShowroom,
     canUndo, canRedo, undo, redo, recordSnapshot,
     activeElement, setActiveElement
   } = useEditorContext();
 
-  const [downloadFormat, setDownloadFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
   const [renderedWidth, setRenderedWidth] = useState(1000);
   const [localDragPos, setLocalDragPos] = useState<{ x: number, y: number } | null>(null);
   const dragPosRef = useRef<{ x: number, y: number } | null>(null);
@@ -406,19 +406,23 @@ export default function CanvasPreview() {
   };
 
   const loadImage = (src: string | File): Promise<HTMLImageElement> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       const isFile = typeof src !== 'string';
       const url = isFile ? URL.createObjectURL(src) : src;
       img.onload = () => {
         if (isFile) URL.revokeObjectURL(url);
+        if (img.naturalWidth === 0) {
+          reject(new Error('ছবি লোড হলেও তা খালি (0x0)'));
+          return;
+        }
         resolve(img);
       };
       img.onerror = () => {
         console.warn(`Failed to load image`);
         if (isFile) URL.revokeObjectURL(url);
-        resolve(new Image());
+        reject(new Error('ছবি লোড করা যায়নি'));
       }
       img.src = url;
     });
@@ -541,7 +545,11 @@ export default function CanvasPreview() {
 
       let globalLogoImg: HTMLImageElement | null = null;
       if (logoUrl) {
-        globalLogoImg = await loadImage(logoUrl);
+        try {
+          globalLogoImg = await loadImage(logoUrl);
+        } catch {
+          globalLogoImg = null; // logo without CORS / broken logo: export without it, not a blank image
+        }
       }
 
       const mimeType = downloadFormat === 'jpeg' ? 'image/jpeg' : (downloadFormat === 'png' ? 'image/png' : 'image/webp');
@@ -569,7 +577,9 @@ export default function CanvasPreview() {
 
       let globalShowroomName = "Furniture";
       if (selectedShowroom) {
-        const showroom = SHOWROOMS.find((s: any) => s.numbers === selectedShowroom);
+        const byName = SHOWROOMS.find((s: any) => s.name === selectedShowroom);
+        const byNumber = SHOWROOMS.find((s: any) => s.numbers === selectedShowroom);
+        const showroom = byName || byNumber;
         if (showroom) globalShowroomName = showroom.name;
       }
       if (globalShowroomName === "Furniture" && numberText) {
@@ -577,8 +587,15 @@ export default function CanvasPreview() {
         if (showroom) globalShowroomName = showroom.name;
       }
 
+      const failedExports: number[] = [];
       for (let i = 0; i < mainImages.length; i++) {
-        const mainImg = await loadImage(mainImages[i]);
+        let mainImg: HTMLImageElement;
+        try {
+          mainImg = await loadImage(mainImages[i]);
+        } catch {
+          failedExports.push(i + 1);
+          continue;
+        }
         const currentSetting: ImageSetting = imageSettings[i] || {
           logoPos: { x: 10, y: 10 },
           numberPos: { x: 50, y: 88 },
@@ -614,21 +631,33 @@ export default function CanvasPreview() {
           ctx.globalAlpha = (currentSetting?.watermarkOpacity ?? watermarkOpacity) / 100;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+          // Previously ctx.font was never set here, so the export used the
+          // canvas default (~10px) instead of the chosen size/font.
+          const wSize = currentSetting?.watermarkSize ?? watermarkSize;
+          const wFont = currentSetting?.watermarkFontFamily ?? watermarkFontFamily;
+          const wWeight = currentSetting?.watermarkFontWeight ?? watermarkFontWeight;
+          const wStyleFont = currentSetting?.watermarkFontStyle ?? watermarkFontStyle;
+          ctx.font = `${wStyleFont} ${wWeight} ${wSize}px "${wFont}", sans-serif`;
 
           const wStyle = currentSetting?.watermarkStyle ?? watermarkStyle;
 
-          if (wStyle === 'diagonal' || wStyle === 'horizontal') {
+          if (wStyle === 'diagonal' || wStyle === 'horizontal' || wStyle === 'custom') {
             const wx = (canvas.width * currentSetting.watermarkPos.x) / 100;
             const wy = (canvas.height * currentSetting.watermarkPos.y) / 100;
             ctx.translate(wx, wy);
             if (wStyle === 'diagonal') ctx.rotate(-Math.PI / 4);
+            if (wStyle === 'custom') {
+              const angle = currentSetting?.watermarkCustomAngle ?? watermarkCustomAngle ?? 0;
+              ctx.rotate((angle * Math.PI) / 180);
+            }
             ctx.fillText(effectiveWatermark, 0, 0);
           } else if (wStyle === 'grid') {
             const wx = (canvas.width * currentSetting.watermarkPos.x) / 100;
             const wy = (canvas.height * currentSetting.watermarkPos.y) / 100;
             ctx.translate(wx - canvas.width / 2, wy - canvas.height / 2);
-            const stepX = 300 * (canvas.width / 1000);
-            const stepY = 200 * (canvas.height / 1000);
+            const spacing = currentSetting?.watermarkGridSpacing ?? watermarkGridSpacing ?? 160;
+            const stepX = spacing * (canvas.width / 1000);
+            const stepY = spacing * 0.66 * (canvas.height / 1000);
             ctx.rotate(-Math.PI / 6);
 
             for (let x = -canvas.width * 2; x < canvas.width * 3; x += stepX) {
@@ -642,7 +671,11 @@ export default function CanvasPreview() {
 
         let currentLogoImg = globalLogoImg;
         if (currentSetting.logoUrl && currentSetting.logoUrl !== logoUrl) {
-          currentLogoImg = await loadImage(currentSetting.logoUrl);
+          try {
+            currentLogoImg = await loadImage(currentSetting.logoUrl);
+          } catch {
+            currentLogoImg = null;
+          }
         }
 
         if (currentLogoImg && currentLogoImg.width > 0) {
@@ -704,6 +737,9 @@ export default function CanvasPreview() {
         }
       }
 
+      if (failedExports.length > 0) {
+        alert(`এই ছবিগুলো লোড করা যায়নি বলে এক্সপোর্ট হয়নি: ${failedExports.join(', ')}`);
+      }
     } finally {
       setIsProcessing(false);
     }
