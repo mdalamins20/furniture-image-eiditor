@@ -161,7 +161,7 @@ export default function LogoSettings() {
                 type="text"
                 value={watermarkText}
                 onChange={(e) => setWatermarkText(e.target.value)}
-                placeholder="যেমন: Dewan Furniture"
+                placeholder="যেমন: আপনার ফার্নিচার বা ব্র্যান্ডের নাম"
                 className="w-full px-5 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
               />
             </div>

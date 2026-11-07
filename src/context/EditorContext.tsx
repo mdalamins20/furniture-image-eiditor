@@ -1203,11 +1203,11 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     ctx.font = 'bold 28px sans-serif';
     ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
     ctx.textAlign = 'center';
-    ctx.fillText('Dewan Furniture — প্রিমিয়াম লিভিং কালেকশন', 640, 250);
+    ctx.fillText('Furniture Studio — প্রিমিয়াম লিভিং কালেকশন', 640, 250);
 
     canvas.toBlob((blob) => {
       if (!blob) return;
-      const demoFile = new File([blob], 'Dewan Furniture.jpg', { type: 'image/jpeg' });
+      const demoFile = new File([blob], 'Furniture Sample.jpg', { type: 'image/jpeg' });
       handleUpload([demoFile]);
     }, 'image/jpeg', 0.95);
   }, [handleUpload]);
