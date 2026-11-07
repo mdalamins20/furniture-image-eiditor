@@ -539,6 +539,10 @@ export default function CanvasPreview() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+
       let globalLogoImg: HTMLImageElement | null = null;
       if (logoUrl) {
         globalLogoImg = await loadImage(logoUrl);
@@ -604,39 +608,70 @@ export default function CanvasPreview() {
         ctx.drawImage(mainImg, 0, 0);
         ctx.filter = 'none';
 
-        const effectiveWatermark = watermarkText.trim() !== ''
+        const isWatermarkActive = currentSetting?.enableWatermark ?? enableWatermark;
+        const rawWatermark = watermarkText.trim() !== ''
           ? watermarkText
           : (currentSetting.assignedShowroom?.name || selectedShowroom || '');
 
-        if (enableWatermark && effectiveWatermark) {
+        if (isWatermarkActive && rawWatermark) {
           ctx.save();
-          ctx.fillStyle = currentSetting?.watermarkColor ?? watermarkColor;
-          ctx.globalAlpha = (currentSetting?.watermarkOpacity ?? watermarkOpacity) / 100;
+
+          const scaleRatio = canvas.width / 1000;
+          const wmSize = (currentSetting?.watermarkSize ?? watermarkSize ?? 36) * scaleRatio;
+          const wmFontFamily = currentSetting?.watermarkFontFamily ?? watermarkFontFamily ?? 'Kalpurush';
+          const wmFontWeight = (currentSetting?.watermarkFontWeight ?? watermarkFontWeight) === 'normal' ? 'normal' : 'bold';
+          const wmFontStyle = currentSetting?.watermarkFontStyle ?? watermarkFontStyle ?? 'normal';
+          const wmColor = currentSetting?.watermarkColor ?? watermarkColor ?? '#FFFFFF';
+          const wmOpacity = Math.max(5, Math.min(100, currentSetting?.watermarkOpacity ?? watermarkOpacity ?? 20)) / 100;
+          const wmLetterSpacing = (currentSetting?.watermarkLetterSpacing ?? watermarkLetterSpacing ?? 0) * scaleRatio;
+          const wStyle = currentSetting?.watermarkStyle ?? watermarkStyle ?? 'diagonal';
+          const wIsGrid = currentSetting?.watermarkIsGrid ?? watermarkIsGrid ?? false;
+
+          let formattedText = rawWatermark;
+          const textTransform = currentSetting?.watermarkTextTransform ?? watermarkTextTransform;
+          if (textTransform === 'uppercase') formattedText = formattedText.toUpperCase();
+          if (textTransform === 'lowercase') formattedText = formattedText.toLowerCase();
+
+          ctx.font = `${wmFontStyle === 'italic' ? 'italic ' : ''}${wmFontWeight === 'bold' ? 'bold ' : ''}${wmSize}px "${wmFontFamily}", "Hind Siliguri", sans-serif`;
+          ctx.fillStyle = wmColor;
+          ctx.globalAlpha = wmOpacity;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          const wStyle = currentSetting?.watermarkStyle ?? watermarkStyle;
+          if ('letterSpacing' in ctx && wmLetterSpacing > 0) {
+            (ctx as any).letterSpacing = `${wmLetterSpacing}px`;
+          }
 
-          if (wStyle === 'diagonal' || wStyle === 'horizontal') {
-            const wx = (canvas.width * currentSetting.watermarkPos.x) / 100;
-            const wy = (canvas.height * currentSetting.watermarkPos.y) / 100;
-            ctx.translate(wx, wy);
-            if (wStyle === 'diagonal') ctx.rotate(-Math.PI / 4);
-            ctx.fillText(effectiveWatermark, 0, 0);
-          } else if (wStyle === 'grid') {
-            const wx = (canvas.width * currentSetting.watermarkPos.x) / 100;
-            const wy = (canvas.height * currentSetting.watermarkPos.y) / 100;
+          const wx = (canvas.width * (currentSetting.watermarkPos?.x ?? defaultWatermarkPos?.x ?? 50)) / 100;
+          const wy = (canvas.height * (currentSetting.watermarkPos?.y ?? defaultWatermarkPos?.y ?? 50)) / 100;
+
+          if (wStyle === 'grid' || (wStyle === 'custom' && wIsGrid)) {
+            const gridSpacing = Math.max(60, (currentSetting?.watermarkGridSpacing ?? watermarkGridSpacing ?? 160) * scaleRatio);
             ctx.translate(wx - canvas.width / 2, wy - canvas.height / 2);
-            const stepX = 300 * (canvas.width / 1000);
-            const stepY = 200 * (canvas.height / 1000);
-            ctx.rotate(-Math.PI / 6);
+            ctx.rotate(-Math.PI / 6); // -30deg matching preview
+
+            const textMetrics = ctx.measureText(formattedText);
+            const stepX = Math.max(gridSpacing, textMetrics.width + gridSpacing);
+            const stepY = gridSpacing * 1.2;
 
             for (let x = -canvas.width * 2; x < canvas.width * 3; x += stepX) {
               for (let y = -canvas.height * 2; y < canvas.height * 3; y += stepY) {
-                ctx.fillText(effectiveWatermark, x, y);
+                ctx.fillText(formattedText, x, y);
               }
             }
+          } else {
+            ctx.translate(wx, wy);
+
+            if (wStyle === 'diagonal') {
+              ctx.rotate(-Math.PI / 4);
+            } else if (wStyle === 'custom') {
+              const angleDeg = currentSetting?.watermarkCustomAngle ?? watermarkCustomAngle ?? -45;
+              ctx.rotate((angleDeg * Math.PI) / 180);
+            }
+
+            ctx.fillText(formattedText, 0, 0);
           }
+
           ctx.restore();
         }
 
