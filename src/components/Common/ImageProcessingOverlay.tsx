@@ -11,6 +11,7 @@ export interface ImageProcessingOverlayProps {
   remainingCount: number;
   estimatedSeconds?: number;
   progress: number; // 0 to 100
+  onSkip?: () => void;
 }
 
 export const ImageProcessingOverlay: React.FC<ImageProcessingOverlayProps> = ({
@@ -22,7 +23,8 @@ export const ImageProcessingOverlay: React.FC<ImageProcessingOverlayProps> = ({
   processedCount,
   remainingCount,
   estimatedSeconds = 0,
-  progress
+  progress,
+  onSkip
 }) => {
   if (!isVisible) return null;
 
@@ -125,6 +127,18 @@ export const ImageProcessingOverlay: React.FC<ImageProcessingOverlayProps> = ({
             {isCompleted ? '✓ সম্পন্ন' : '⚡ দ্রুত সাজানো হচ্ছে'}
           </span>
         </div>
+
+        {/* Optional Skip Button for massive bulk uploads */}
+        {!isCompleted && onSkip && (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="mt-3.5 w-full py-2 px-3 text-xs font-semibold text-gray-600 hover:text-blue-700 bg-gray-100/80 hover:bg-blue-50 border border-gray-200/80 hover:border-blue-200 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+          >
+            <span>স্ক্যানিং বাদ দিয়ে সরাসরি এডিটে যান (Skip)</span>
+            <span className="text-[10px] text-gray-400 font-normal">→</span>
+          </button>
+        )}
 
       </div>
     </div>

@@ -9,7 +9,7 @@ import { SHOWROOMS } from '../../types';
 export default function CanvasPreview() {
   const {
     mainImages, setMainImages, previewUrls, setPreviewUrls, previewIndex, setPreviewIndex, setSelectedIndices, imageSettings, updateSetting,
-    isProcessing, setIsProcessing,
+    isProcessing,
     processingProgress, processingStepText,
     processedCount, remainingCount, estimatedSeconds, currentProcessingFile,
     handleUpload, loadDemoSample,
@@ -23,10 +23,19 @@ export default function CanvasPreview() {
     watermarkTextDecoration, watermarkTextTransform, watermarkLetterSpacing,
     watermarkCustomAngle, watermarkIsGrid, watermarkGridSpacing,
     brightness, contrast, saturation, warmth,
-    selectedShowroom,
+    selectedShowroom, showrooms,
     canUndo, canRedo, undo, redo, recordSnapshot,
-    activeElement, setActiveElement
+    activeElement, setActiveElement,
+    skipProcessing
   } = useEditorContext();
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportProcessed, setExportProcessed] = useState(0);
+  const [exportRemaining, setExportRemaining] = useState(0);
+  const [exportEstimatedSeconds, setExportEstimatedSeconds] = useState(0);
+  const [exportCurrentFile, setExportCurrentFile] = useState('');
+  const [exportStepText, setExportStepText] = useState('');
 
   const [downloadFormat, setDownloadFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
   const [renderedWidth, setRenderedWidth] = useState(1000);
@@ -531,7 +540,38 @@ export default function CanvasPreview() {
 
   const downloadAll = async () => {
     if (mainImages.length === 0) return;
-    setIsProcessing(true);
+
+    let dirHandle: any = null;
+    let dateDirHandle: any = null;
+
+    if ('showDirectoryPicker' in window) {
+      try {
+        dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+        const today = new Date();
+        const dateFolder = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
+        dateDirHandle = await dirHandle.getDirectoryHandle(dateFolder, { create: true });
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+          alert('ব্রাউজারের সিকিউরিটির কারণে সরাসরি মূল "Downloads" বা "Desktop" ফোল্ডার সিলেক্ট করা যায় না।\n\nদয়া করে Downloads বা অন্য ড্রাইভের ভেতরে "নতুন একটি ফোল্ডার (New Folder)" তৈরি করে সেটি সিলেক্ট করুন।');
+          return;
+        }
+        console.warn('Directory picker failed, falling back to traditional download', err);
+      }
+    }
+
+    if (!dateDirHandle && mainImages.length > 10) {
+      alert('একসাথে ১০টির বেশি ছবি সেভ করার জন্য ব্রাউজার সিকিউরিটি অনুযায়ী ফোল্ডার নির্বাচন করা আবশ্যক।\n\nদয়া করে আবার "ডাউনলোড করুন" বাটনে ক্লিক করে কম্পিউটারের একটি ফোল্ডার সিলেক্ট করুন।');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportProgress(1);
+    setExportProcessed(0);
+    setExportRemaining(mainImages.length);
+    setExportEstimatedSeconds(Math.max(1, Math.round(mainImages.length * 0.18)));
+    setExportCurrentFile(mainImages[0]?.name || '');
+    setExportStepText('ছবিগুলো ফোল্ডারে সেভ করা শুরু হচ্ছে...');
 
     try {
       const canvas = canvasRef.current;
@@ -551,196 +591,216 @@ export default function CanvasPreview() {
       const mimeType = downloadFormat === 'jpeg' ? 'image/jpeg' : (downloadFormat === 'png' ? 'image/png' : 'image/webp');
       const extension = downloadFormat === 'jpeg' ? 'jpg' : downloadFormat;
 
-      let dirHandle: any = null;
-      let dateDirHandle: any = null;
-
-      if ('showDirectoryPicker' in window) {
-        try {
-          dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-          const today = new Date();
-          const dateFolder = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
-          dateDirHandle = await dirHandle.getDirectoryHandle(dateFolder, { create: true });
-        } catch (err: any) {
-          setIsProcessing(false);
-          if (err.name === 'AbortError') return;
-          if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
-            alert('ব্রাউজারের সিকিউরিটির কারণে সরাসরি মূল "Downloads" বা "Desktop" ফোল্ডার সিলেক্ট করা যায় না।\n\nদয়া করে Downloads-এর ভেতরে "নতুন একটি ফোল্ডার (New Folder)" তৈরি করে সেটি সিলেক্ট করুন।');
-            return;
-          }
-          console.warn('Directory picker failed, falling back to traditional download', err);
-        }
-      }
-
       let globalShowroomName = "Furniture";
       if (selectedShowroom) {
-        const showroom = SHOWROOMS.find((s: any) => s.numbers === selectedShowroom);
+        const showroom = (showrooms || []).find((s: any) => s.numbers === selectedShowroom || s.name === selectedShowroom);
         if (showroom) globalShowroomName = showroom.name;
       }
       if (globalShowroomName === "Furniture" && numberText) {
-        const showroom = SHOWROOMS.find((s: any) => s.numbers.trim() === numberText.trim());
+        const showroom = (showrooms || []).find((s: any) => s.numbers.trim() === numberText.trim());
         if (showroom) globalShowroomName = showroom.name;
       }
 
-      for (let i = 0; i < mainImages.length; i++) {
-        const mainImg = await loadImage(mainImages[i]);
-        const currentSetting: ImageSetting = imageSettings[i] || {
-          logoPos: { x: 10, y: 10 },
-          numberPos: { x: 50, y: 88 },
-          watermarkPos: { x: 50, y: 50 },
-          isLogoPosManual: false,
-          isNumberPosManual: false,
-          isWatermarkPosManual: false,
-          brightness: 100,
-          contrast: 100,
-          saturation: 100,
-          warmth: 0
-        };
+      const startTime = Date.now();
+      const total = mainImages.length;
 
-        canvas.width = mainImg.width;
-        canvas.height = mainImg.height;
+      for (let i = 0; i < total; i++) {
+        try {
+          const mainImg = await loadImage(mainImages[i]);
+          if (!mainImg.width || !mainImg.height) continue;
 
-        const effBrightness = currentSetting.brightness ?? brightness ?? 100;
-        const effContrast = currentSetting.contrast ?? contrast ?? 100;
-        const effSaturation = currentSetting.saturation ?? saturation ?? 100;
-        const effWarmth = currentSetting.warmth ?? warmth ?? 0;
+          const currentSetting: ImageSetting = imageSettings[i] || {
+            logoPos: { x: 10, y: 10 },
+            numberPos: { x: 50, y: 88 },
+            watermarkPos: { x: 50, y: 50 },
+            isLogoPosManual: false,
+            isNumberPosManual: false,
+            isWatermarkPosManual: false,
+            brightness: 100,
+            contrast: 100,
+            saturation: 100,
+            warmth: 0
+          };
 
-        ctx.filter = `brightness(${effBrightness}%) contrast(${effContrast}%) saturate(${effSaturation}%) sepia(${effWarmth}%)`;
-        ctx.drawImage(mainImg, 0, 0);
-        ctx.filter = 'none';
+          canvas.width = mainImg.width;
+          canvas.height = mainImg.height;
 
-        const isWatermarkActive = currentSetting?.enableWatermark ?? enableWatermark;
-        const rawWatermark = watermarkText.trim() !== ''
-          ? watermarkText
-          : (currentSetting.assignedShowroom?.name || selectedShowroom || '');
+          const effBrightness = currentSetting.brightness ?? brightness ?? 100;
+          const effContrast = currentSetting.contrast ?? contrast ?? 100;
+          const effSaturation = currentSetting.saturation ?? saturation ?? 100;
+          const effWarmth = currentSetting.warmth ?? warmth ?? 0;
 
-        if (isWatermarkActive && rawWatermark) {
-          ctx.save();
+          ctx.filter = `brightness(${effBrightness}%) contrast(${effContrast}%) saturate(${effSaturation}%) sepia(${effWarmth}%)`;
+          ctx.drawImage(mainImg, 0, 0);
+          ctx.filter = 'none';
 
-          const scaleRatio = canvas.width / 1000;
-          const wmSize = (currentSetting?.watermarkSize ?? watermarkSize ?? 36) * scaleRatio;
-          const wmFontFamily = currentSetting?.watermarkFontFamily ?? watermarkFontFamily ?? 'Kalpurush';
-          const wmFontWeight = (currentSetting?.watermarkFontWeight ?? watermarkFontWeight) === 'normal' ? 'normal' : 'bold';
-          const wmFontStyle = currentSetting?.watermarkFontStyle ?? watermarkFontStyle ?? 'normal';
-          const wmColor = currentSetting?.watermarkColor ?? watermarkColor ?? '#FFFFFF';
-          const wmOpacity = Math.max(5, Math.min(100, currentSetting?.watermarkOpacity ?? watermarkOpacity ?? 20)) / 100;
-          const wmLetterSpacing = (currentSetting?.watermarkLetterSpacing ?? watermarkLetterSpacing ?? 0) * scaleRatio;
-          const wStyle = currentSetting?.watermarkStyle ?? watermarkStyle ?? 'diagonal';
-          const wIsGrid = currentSetting?.watermarkIsGrid ?? watermarkIsGrid ?? false;
+          const isWatermarkActive = currentSetting?.enableWatermark ?? enableWatermark;
+          const rawWatermark = watermarkText.trim() !== ''
+            ? watermarkText
+            : (currentSetting.assignedShowroom?.name || selectedShowroom || '');
 
-          let formattedText = rawWatermark;
-          const textTransform = currentSetting?.watermarkTextTransform ?? watermarkTextTransform;
-          if (textTransform === 'uppercase') formattedText = formattedText.toUpperCase();
-          if (textTransform === 'lowercase') formattedText = formattedText.toLowerCase();
+          if (isWatermarkActive && rawWatermark) {
+            ctx.save();
 
-          ctx.font = `${wmFontStyle === 'italic' ? 'italic ' : ''}${wmFontWeight === 'bold' ? 'bold ' : ''}${wmSize}px "${wmFontFamily}", "Hind Siliguri", sans-serif`;
-          ctx.fillStyle = wmColor;
-          ctx.globalAlpha = wmOpacity;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
+            const scaleRatio = canvas.width / 1000;
+            const wmSize = (currentSetting?.watermarkSize ?? watermarkSize ?? 36) * scaleRatio;
+            const wmFontFamily = currentSetting?.watermarkFontFamily ?? watermarkFontFamily ?? 'Kalpurush';
+            const wmFontWeight = (currentSetting?.watermarkFontWeight ?? watermarkFontWeight) === 'normal' ? 'normal' : 'bold';
+            const wmFontStyle = currentSetting?.watermarkFontStyle ?? watermarkFontStyle ?? 'normal';
+            const wmColor = currentSetting?.watermarkColor ?? watermarkColor ?? '#FFFFFF';
+            const wmOpacity = Math.max(5, Math.min(100, currentSetting?.watermarkOpacity ?? watermarkOpacity ?? 20)) / 100;
+            const wmLetterSpacing = (currentSetting?.watermarkLetterSpacing ?? watermarkLetterSpacing ?? 0) * scaleRatio;
+            const wStyle = currentSetting?.watermarkStyle ?? watermarkStyle ?? 'diagonal';
+            const wIsGrid = currentSetting?.watermarkIsGrid ?? watermarkIsGrid ?? false;
 
-          if ('letterSpacing' in ctx && wmLetterSpacing > 0) {
-            (ctx as any).letterSpacing = `${wmLetterSpacing}px`;
-          }
+            let formattedText = rawWatermark;
+            const textTransform = currentSetting?.watermarkTextTransform ?? watermarkTextTransform;
+            if (textTransform === 'uppercase') formattedText = formattedText.toUpperCase();
+            if (textTransform === 'lowercase') formattedText = formattedText.toLowerCase();
 
-          const wx = (canvas.width * (currentSetting.watermarkPos?.x ?? defaultWatermarkPos?.x ?? 50)) / 100;
-          const wy = (canvas.height * (currentSetting.watermarkPos?.y ?? defaultWatermarkPos?.y ?? 50)) / 100;
+            ctx.font = `${wmFontStyle === 'italic' ? 'italic ' : ''}${wmFontWeight === 'bold' ? 'bold ' : ''}${wmSize}px "${wmFontFamily}", "Hind Siliguri", sans-serif`;
+            ctx.fillStyle = wmColor;
+            ctx.globalAlpha = wmOpacity;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
 
-          if (wStyle === 'grid' || (wStyle === 'custom' && wIsGrid)) {
-            const gridSpacing = Math.max(60, (currentSetting?.watermarkGridSpacing ?? watermarkGridSpacing ?? 160) * scaleRatio);
-            ctx.translate(wx - canvas.width / 2, wy - canvas.height / 2);
-            ctx.rotate(-Math.PI / 6); // -30deg matching preview
+            if ('letterSpacing' in ctx && wmLetterSpacing > 0) {
+              (ctx as any).letterSpacing = `${wmLetterSpacing}px`;
+            }
 
-            const textMetrics = ctx.measureText(formattedText);
-            const stepX = Math.max(gridSpacing, textMetrics.width + gridSpacing);
-            const stepY = gridSpacing * 1.2;
+            const wx = (canvas.width * (currentSetting.watermarkPos?.x ?? defaultWatermarkPos?.x ?? 50)) / 100;
+            const wy = (canvas.height * (currentSetting.watermarkPos?.y ?? defaultWatermarkPos?.y ?? 50)) / 100;
 
-            for (let x = -canvas.width * 2; x < canvas.width * 3; x += stepX) {
-              for (let y = -canvas.height * 2; y < canvas.height * 3; y += stepY) {
-                ctx.fillText(formattedText, x, y);
+            if (wStyle === 'grid' || (wStyle === 'custom' && wIsGrid)) {
+              const gridSpacing = Math.max(60, (currentSetting?.watermarkGridSpacing ?? watermarkGridSpacing ?? 160) * scaleRatio);
+              ctx.translate(wx - canvas.width / 2, wy - canvas.height / 2);
+              ctx.rotate(-Math.PI / 6);
+
+              const textMetrics = ctx.measureText(formattedText);
+              const stepX = Math.max(gridSpacing, textMetrics.width + gridSpacing);
+              const stepY = gridSpacing * 1.2;
+
+              for (let x = -canvas.width * 2; x < canvas.width * 3; x += stepX) {
+                for (let y = -canvas.height * 2; y < canvas.height * 3; y += stepY) {
+                  ctx.fillText(formattedText, x, y);
+                }
               }
-            }
-          } else {
-            ctx.translate(wx, wy);
+            } else {
+              ctx.translate(wx, wy);
 
-            if (wStyle === 'diagonal') {
-              ctx.rotate(-Math.PI / 4);
-            } else if (wStyle === 'custom') {
-              const angleDeg = currentSetting?.watermarkCustomAngle ?? watermarkCustomAngle ?? -45;
-              ctx.rotate((angleDeg * Math.PI) / 180);
+              if (wStyle === 'diagonal') {
+                ctx.rotate(-Math.PI / 4);
+              } else if (wStyle === 'custom') {
+                const angleDeg = currentSetting?.watermarkCustomAngle ?? watermarkCustomAngle ?? -45;
+                ctx.rotate((angleDeg * Math.PI) / 180);
+              }
+
+              ctx.fillText(formattedText, 0, 0);
             }
 
-            ctx.fillText(formattedText, 0, 0);
+            ctx.restore();
           }
 
-          ctx.restore();
-        }
+          let currentLogoImg = globalLogoImg;
+          if (currentSetting.logoUrl && currentSetting.logoUrl !== logoUrl) {
+            currentLogoImg = await loadImage(currentSetting.logoUrl);
+          }
 
-        let currentLogoImg = globalLogoImg;
-        if (currentSetting.logoUrl && currentSetting.logoUrl !== logoUrl) {
-          currentLogoImg = await loadImage(currentSetting.logoUrl);
-        }
+          if (currentLogoImg && currentLogoImg.width > 0) {
+            const currentLogoSize = currentSetting.logoSize ?? logoSize;
+            const logoMaxWidth = canvas.width * (currentLogoSize / 100);
+            const scale = logoMaxWidth / currentLogoImg.width;
+            const logoW = currentLogoImg.width * scale;
+            const logoH = currentLogoImg.height * scale;
 
-        if (currentLogoImg && currentLogoImg.width > 0) {
-          const currentLogoSize = currentSetting.logoSize ?? logoSize;
-          const logoMaxWidth = canvas.width * (currentLogoSize / 100);
-          const scale = logoMaxWidth / currentLogoImg.width;
-          const logoW = currentLogoImg.width * scale;
-          const logoH = currentLogoImg.height * scale;
+            let lx = (canvas.width * currentSetting.logoPos.x) / 100;
+            let ly = (canvas.height * currentSetting.logoPos.y) / 100;
 
-          let lx = (canvas.width * currentSetting.logoPos.x) / 100;
-          let ly = (canvas.height * currentSetting.logoPos.y) / 100;
+            const logoMarginPx = Math.max(16, canvas.width * 0.018);
+            lx = Math.max(logoW / 2 + logoMarginPx, Math.min(canvas.width - logoW / 2 - logoMarginPx, lx));
+            ly = Math.max(logoH / 2 + logoMarginPx, Math.min(canvas.height - logoH / 2 - logoMarginPx, ly));
 
-          const logoMarginPx = Math.max(16, canvas.width * 0.018);
-          lx = Math.max(logoW / 2 + logoMarginPx, Math.min(canvas.width - logoW / 2 - logoMarginPx, lx));
-          ly = Math.max(logoH / 2 + logoMarginPx, Math.min(canvas.height - logoH / 2 - logoMarginPx, ly));
-
-          const currentEnableLogoShadow = currentSetting.enableLogoShadow ?? enableLogoShadow;
-          if (currentEnableLogoShadow) {
-            ctx.shadowColor = currentSetting.logoShadowColor ?? logoShadowColor;
-            ctx.shadowBlur = (currentSetting.logoShadowBlur ?? logoShadowBlur) * (canvas.width / 1000);
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-            const intensity = currentSetting.logoShadowIntensity ?? logoShadowIntensity;
-            for (let i = 0; i < intensity; i++) {
+            const currentEnableLogoShadow = currentSetting.enableLogoShadow ?? enableLogoShadow;
+            if (currentEnableLogoShadow) {
+              ctx.shadowColor = currentSetting.logoShadowColor ?? logoShadowColor;
+              ctx.shadowBlur = (currentSetting.logoShadowBlur ?? logoShadowBlur) * (canvas.width / 1000);
+              ctx.shadowOffsetX = 0;
+              ctx.shadowOffsetY = 0;
+              const intensity = currentSetting.logoShadowIntensity ?? logoShadowIntensity;
+              for (let j = 0; j < intensity; j++) {
+                ctx.drawImage(currentLogoImg, lx - logoW / 2, ly - logoH / 2, logoW, logoH);
+              }
+            } else {
               ctx.drawImage(currentLogoImg, lx - logoW / 2, ly - logoH / 2, logoW, logoH);
             }
+
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+          }
+
+          const currentNumberText = currentSetting.numberText ?? numberText;
+          if (currentNumberText) {
+            drawNumberWithBackground(ctx, canvas.width, canvas.height, currentSetting.numberPos, currentNumberText, currentSetting);
+          }
+
+          const rawName = currentSetting.assignedShowroom ? currentSetting.assignedShowroom.name : globalShowroomName;
+          const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_').trim() || 'Furniture';
+          const fileName = `${cleanName}_${i + 1}.${extension}`;
+
+          if (dateDirHandle) {
+            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, 0.95));
+            if (blob) {
+              const fileHandle = await dateDirHandle.getFileHandle(fileName, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+            }
           } else {
-            ctx.drawImage(currentLogoImg, lx - logoW / 2, ly - logoH / 2, logoW, logoH);
+            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, 0.95));
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = fileName;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+            await new Promise(r => setTimeout(r, 150));
           }
 
-          ctx.shadowColor = 'transparent';
-          ctx.shadowBlur = 0;
+          // Release memory immediately
+          mainImg.src = '';
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        } catch (imgErr) {
+          console.error(`Error saving image index ${i}:`, imgErr);
         }
 
-        const currentNumberText = currentSetting.numberText ?? numberText;
-        if (currentNumberText) {
-          drawNumberWithBackground(ctx, canvas.width, canvas.height, currentSetting.numberPos, currentNumberText, currentSetting);
-        }
+        const done = i + 1;
+        const remaining = total - done;
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        const avgPerItem = elapsedSec / done;
+        const estLeft = Math.max(0, Math.round(remaining * avgPerItem));
 
-        const fileName = `${currentSetting.assignedShowroom ? currentSetting.assignedShowroom.name : globalShowroomName}_${i + 1}.${extension}`;
+        setExportProgress(Math.min(100, Math.round((done / total) * 100)));
+        setExportProcessed(done);
+        setExportRemaining(remaining);
+        setExportEstimatedSeconds(estLeft);
+        setExportCurrentFile(mainImages[i]?.name || `Image_${i + 1}`);
+        setExportStepText(`সেভ হচ্ছে (${done}/${total})`);
 
-        if (dateDirHandle) {
-          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, 0.95));
-          if (blob) {
-            const fileHandle = await dateDirHandle.getFileHandle(fileName, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-          }
-        } else {
-          const dataUrl = canvas.toDataURL(mimeType, 0.95);
-          const link = document.createElement('a');
-          link.href = dataUrl;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          await new Promise(r => setTimeout(r, 200));
+        // Yield to event loop every 2 images for smooth UI and GC
+        if (i % 2 === 0 || i === total - 1) {
+          await new Promise(r => setTimeout(r, 16));
         }
       }
 
+      setExportProgress(100);
+      setExportStepText('সবগুলো ছবি সফলভাবে সেভ হয়েছে!');
+      await new Promise(r => setTimeout(r, 500));
     } finally {
-      setIsProcessing(false);
+      setIsExporting(false);
     }
   };
 
@@ -836,12 +896,12 @@ export default function CanvasPreview() {
             </select>
             <button
               onClick={downloadAll}
-              disabled={isProcessing || previewUrls.length === 0}
+              disabled={isProcessing || isExporting || previewUrls.length === 0}
               className="relative flex items-center justify-center gap-2 px-4.5 py-2 bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm rounded-xl transition-all shadow-[0_4px_14px_rgba(0,113,227,0.3)] hover:shadow-[0_6px_18px_rgba(0,113,227,0.45)] hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 overflow-hidden group whitespace-nowrap"
             >
               <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Download className="w-4 h-4 shrink-0" strokeWidth={2.5} />
-              {isProcessing ? 'প্রসেসিং...' : 'ডাউনলোড করুন'}
+              {isExporting ? 'সেভ হচ্ছে...' : isProcessing ? 'প্রসেসিং...' : 'ডাউনলোড করুন'}
             </button>
           </div>
         </div>
@@ -1224,17 +1284,18 @@ export default function CanvasPreview() {
         />
       )}
 
-      {/* Dynamic Image Import & Arranging Animation Overlay */}
+      {/* Dynamic Image Import & Export Animation Overlay */}
       <ImageProcessingOverlay
-        isVisible={isProcessing}
-        title="ছবিগুলো গুছিয়ে প্রস্তুত করা হচ্ছে..."
-        subtitle={processingStepText || "খালি জায়গা স্ক্যান করে লোগো ও নম্বর নিখুঁত পজিশনে সাজানো হচ্ছে"}
-        progress={processingProgress}
+        isVisible={isProcessing || isExporting}
+        title={isExporting ? 'ছবিগুলো ফোল্ডারে সেভ করা হচ্ছে...' : 'ছবিগুলো গুছিয়ে প্রস্তুত করা হচ্ছে...'}
+        subtitle={isExporting ? (exportStepText || 'উচ্চ রেজোলিউশন ও নিখুঁত কোয়ালিটিতে ছবি কম্পিউটারে সংরক্ষণ হচ্ছে') : (processingStepText || 'খালি জায়গা স্ক্যান করে লোগো ও নম্বর নিখুঁত পজিশনে সাজানো হচ্ছে')}
+        progress={isExporting ? exportProgress : processingProgress}
         totalImages={mainImages.length}
-        processedCount={processedCount}
-        remainingCount={remainingCount}
-        estimatedSeconds={estimatedSeconds}
-        currentFileName={currentProcessingFile}
+        processedCount={isExporting ? exportProcessed : processedCount}
+        remainingCount={isExporting ? exportRemaining : remainingCount}
+        estimatedSeconds={isExporting ? exportEstimatedSeconds : estimatedSeconds}
+        currentFileName={isExporting ? exportCurrentFile : currentProcessingFile}
+        onSkip={isProcessing && !isExporting ? skipProcessing : undefined}
       />
     </div>
   );

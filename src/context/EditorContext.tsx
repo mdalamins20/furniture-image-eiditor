@@ -144,6 +144,7 @@ interface EditorContextType {
   updateSettingsBatch: (updates: Partial<ImageSetting>, globalSetters?: Record<string, (val: any) => void>) => void;
   removeImage: (indexToRemove: number) => void;
   handleUpload: (files: File[]) => void;
+  skipProcessing: () => void;
   loadDemoSample: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -889,9 +890,17 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   };
 
+  const cancelProcessingRef = useRef(false);
+
+  const skipProcessing = useCallback(() => {
+    cancelProcessingRef.current = true;
+    setIsProcessing(false);
+  }, []);
+
   // Unified Handle Upload with auto-matching showroom and inheriting persistent defaults
   const handleUpload = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    cancelProcessingRef.current = false;
     recordSnapshot();
     const total = files.length;
     setIsProcessing(true);
@@ -987,6 +996,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       const worker = async () => {
         while (nextIndex < total) {
+          if (cancelProcessingRef.current) break;
           const i = nextIndex++;
           const file = files[i];
           setCurrentProcessingFile(file.name);
@@ -1287,6 +1297,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       updateSettingsBatch,
       removeImage,
       handleUpload,
+      skipProcessing,
       loadDemoSample,
       canUndo,
       canRedo,
