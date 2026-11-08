@@ -4,8 +4,10 @@ import type { ImageSetting, EditorSnapshot, ShowroomItem } from '../types';
 import { subscribeShowrooms, loadShowrooms } from '../services/showroomService';
 import { SHOWROOMS } from '../types';
 import { useAuth } from './AuthContext';
+import { triggerInAppDialog } from './DialogContext';
 import { loadPersistedConfig, savePersistedConfig, resolvePersistedLogoUrl, DEFAULT_CONFIG, type PersistedConfig } from '../utils/storageHelper';
 import { analyzeImageForEmptySpace, getGeminiApiKey, setGeminiApiKey as saveGeminiApiKey } from '../utils/imageAnalyzer';
+import { optimizeClientImage } from '../utils/imageOptimizer';
 
 
 interface EditorContextType {
@@ -447,7 +449,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const recordSnapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getCurrentSnapshot = useCallback((): EditorSnapshot => ({
-    imageSettings: imageSettings.map(s => s ? { ...s, logoPos: { ...s.logoPos }, numberPos: { ...s.numberPos }, watermarkPos: { ...s.watermarkPos } } : s),
+    imageSettings: [...imageSettings],
     globalState: {
       selectedShowroom,
       logoUrl,
@@ -512,7 +514,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [getCurrentSnapshot]);
 
   const cloneSnapshot = (snap: EditorSnapshot): EditorSnapshot => ({
-    imageSettings: snap.imageSettings.map(s => s ? { ...s, logoPos: { ...s.logoPos }, numberPos: { ...s.numberPos }, watermarkPos: { ...s.watermarkPos } } : s),
+    imageSettings: [...snap.imageSettings],
     globalState: { ...snap.globalState }
   });
 
@@ -900,18 +902,31 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Unified Handle Upload with auto-matching showroom and inheriting persistent defaults
   const handleUpload = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+
+    const MAX_ALLOWED_IMAGES = 1000;
+    let uploadFiles = files;
+    if (files.length > MAX_ALLOWED_IMAGES) {
+      uploadFiles = files.slice(0, MAX_ALLOWED_IMAGES);
+      triggerInAppDialog({
+        type: 'warning',
+        title: 'ছবির সর্বোচ্চ সীমা (১,০০০ টি)',
+        message: `অ্যাপের আল্ট্রা-স্মুথ পারফরম্যান্স ও সুপার-ফাস্ট গতি বজায় রাখতে একসাথে সর্বোচ্চ ${MAX_ALLOWED_IMAGES}টি ছবি নিয়ে কাজ করার সীমা নির্ধারণ করা হয়েছে।\n\nপ্রথম ${MAX_ALLOWED_IMAGES}টি ছবি সফলভাবে গ্রহণ করা হয়েছে। বাকি ছবিগুলো এই ব্যাচ সেভ করার পর পরবর্তী ব্যাচে যুক্ত করতে পারেন।`,
+        confirmText: 'বুঝেছি'
+      });
+    }
+
     cancelProcessingRef.current = false;
     recordSnapshot();
-    const total = files.length;
+    const total = uploadFiles.length;
     setIsProcessing(true);
     setProcessingProgress(5);
     setProcessedCount(0);
     setRemainingCount(total);
     setEstimatedSeconds(Math.max(1, Math.round(total * 0.15)));
-    setCurrentProcessingFile(files[0]?.name || '');
+    setCurrentProcessingFile(uploadFiles[0]?.name || '');
     setProcessingStepText('ছবিগুলো ইনপুট ও বিশ্লেষণ করা হচ্ছে...');
 
-    const newUrls = files.map(file => URL.createObjectURL(file));
+    const newUrls = uploadFiles.map(file => URL.createObjectURL(file));
 
     setPreviewUrls(prev => {
       prev.forEach(u => URL.revokeObjectURL(u));
@@ -921,7 +936,7 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setPreviewIndex(0);
     setSelectedIndices(new Set([0]));
 
-    const newSettings: ImageSetting[] = files.map(file => {
+    const newSettings: ImageSetting[] = uploadFiles.map(file => {
       const fName = file.name.toLowerCase().replace(/\.[^/.]+$/, "").trim();
       let matchedShowroom = showrooms.find(s => s.name.toLowerCase().trim() === fName);
       if (!matchedShowroom) {
@@ -982,15 +997,17 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       };
     });
 
-    setMainImages(files);
+    setMainImages(uploadFiles);
     setImageSettings(newSettings);
 
     const startTime = Date.now();
     const positions: any[] = new Array(total);
+    const optimizedFiles: File[] = new Array(total);
+    const optimizedUrls: string[] = new Array(total);
     let done = 0;
 
     try {
-      // Concurrency worker pool: analyze up to 6 images simultaneously in parallel for 10x faster speed!
+      // Concurrency worker pool: analyze & optimize up to 6 images simultaneously in parallel for 10x faster speed!
       const concurrency = Math.min(6, total);
       let nextIndex = 0;
 
@@ -998,11 +1015,16 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         while (nextIndex < total) {
           if (cancelProcessingRef.current) break;
           const i = nextIndex++;
-          const file = files[i];
+          const file = uploadFiles[i];
           setCurrentProcessingFile(file.name);
 
-          // Ultra-fast local vision algorithm (15ms, zero network lag)
-          const pos = await analyzeImageForEmptySpace(file, false);
+          // 1. Strip all metadata (EXIF/GPS), standardize resolution (max 1920px), compress with high fidelity
+          const opt = await optimizeClientImage(file, 1920, 0.88);
+          optimizedFiles[i] = opt.file;
+          optimizedUrls[i] = opt.url;
+
+          // 2. Vision analysis for empty space detection
+          const pos = await analyzeImageForEmptySpace(opt.file, false);
           positions[i] = pos;
 
           done++;
@@ -1015,11 +1037,18 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           setRemainingCount(remaining);
           setEstimatedSeconds(estLeft);
           setProcessingProgress(Math.min(95, Math.round((done / total) * 90)));
-          setProcessingStepText(`সাজানো হচ্ছে (${done}/${total}): ${file.name}`);
+          setProcessingStepText(`অপ্টিমাইজ ও সাজানো হচ্ছে (${done}/${total}): ${opt.file.name}`);
         }
       };
 
       await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+      // Update with lightweight optimized images and clean URLs (freeing original heavy raw buffers)
+      setMainImages(optimizedFiles);
+      setPreviewUrls(prev => {
+        prev.forEach(u => URL.revokeObjectURL(u));
+        return optimizedUrls;
+      });
 
       setImageSettings(curr => {
         const updated = [...curr];

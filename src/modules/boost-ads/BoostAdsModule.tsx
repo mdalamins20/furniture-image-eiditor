@@ -19,9 +19,12 @@ import BoostGallery from './components/BoostGallery';
 import BoostShortcutsModal from './components/BoostShortcutsModal';
 import ImageProcessingOverlay from '../../components/Common/ImageProcessingOverlay';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
+import { optimizeClientImage } from '../../utils/imageOptimizer';
 
 export default function BoostAdsModule() {
   const { user } = useAuth();
+  const { showDialog } = useDialog();
   // --- Active Sidebar Tab ---
   const [activeTab, setActiveTab] = useState<SidebarTab>('showroom');
 
@@ -144,6 +147,7 @@ export default function BoostAdsModule() {
   // --- UI Modals & Processing ---
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadStepText, setUploadStepText] = useState<string>('');
   const [uploadTotal, setUploadTotal] = useState<number>(0);
@@ -649,7 +653,24 @@ export default function BoostAdsModule() {
   // Handle Initial Image Upload (Bulk)
   const processFileList = async (fileList: File[], isAppend: boolean = false) => {
     if (!fileList || fileList.length === 0) return;
-    const total = fileList.length;
+
+    const MAX_ALLOWED_IMAGES = 1000;
+    const currentCount = isAppend ? images.length : 0;
+    let targetFiles = fileList;
+
+    if (currentCount + fileList.length > MAX_ALLOWED_IMAGES) {
+      const allowedCount = Math.max(0, MAX_ALLOWED_IMAGES - currentCount);
+      targetFiles = fileList.slice(0, allowedCount);
+      showDialog({
+        type: 'warning',
+        title: 'ছবির সর্বোচ্চ সীমা (১,০০০ টি)',
+        message: `স্মুথ পারফরম্যান্স ও সুপার-ফাস্ট গতি বজায় রাখতে একসাথে সর্বোচ্চ ${MAX_ALLOWED_IMAGES}টি ছবি নিয়ে কাজ করার সীমা নির্ধারণ করা হয়েছে।\n\n${targetFiles.length > 0 ? `প্রথম ${targetFiles.length}টি ছবি গ্রহণ করা হয়েছে।` : 'ইতিমধ্যেই ১,০০০টি ছবি যুক্ত রয়েছে।'} বাকি ছবিগুলো এই ব্যাচ সম্পন্ন করে পরবর্তী ব্যাচে যুক্ত করুন।`,
+        confirmText: 'বুঝেছি'
+      });
+      if (targetFiles.length === 0) return;
+    }
+
+    const total = targetFiles.length;
 
     setIsProcessing(true);
     setUploadProgress(15);
@@ -657,19 +678,21 @@ export default function BoostAdsModule() {
     setUploadProcessed(0);
     setUploadRemaining(total);
     setUploadEstimatedSec(Math.max(1, Math.round(total * 0.02)));
-    setUploadCurrentFileName(fileList[0]?.name || '');
+    setUploadCurrentFileName(targetFiles[0]?.name || '');
     setUploadStepText('ছবিগুলো ইনপুট ও বিশ্লেষণ করা হচ্ছে...');
 
     const newItems: AdImageItem[] = [];
     const startIndex = isAppend ? images.length : 0;
     const startTime = Date.now();
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
+    for (let i = 0; i < targetFiles.length; i++) {
+      const file = targetFiles[i];
       const idx = startIndex + i;
       setUploadCurrentFileName(file.name);
 
-      const url = URL.createObjectURL(file);
+      // Strip all metadata, standardize resolution to 1920px, compress to ~250KB JPEG
+      const opt = await optimizeClientImage(file, 1920, 0.88);
+      const url = opt.url;
       const detectedPrice = parsePriceFromFilename(file.name);
       const generatedModel = generateModelNumber(startModelInput, idx);
       const actualPrice = detectedPrice || '25,000/-';
@@ -678,9 +701,9 @@ export default function BoostAdsModule() {
 
       newItems.push({
         id: `${file.name}-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
-        file,
+        file: opt.file,
         url,
-        name: file.name,
+        name: opt.file.name,
         modelNumber: generatedModel,
         price: actualPrice,
         cutPrice: autoCut,
@@ -1303,8 +1326,19 @@ export default function BoostAdsModule() {
       }
     }
 
+    setIsExporting(true);
     setIsProcessing(true);
+    setUploadTotal(images.length);
+    setUploadProcessed(0);
+    setUploadRemaining(images.length);
+    setUploadProgress(1);
+    setUploadEstimatedSec(Math.max(1, Math.round(images.length * 0.18)));
+    setUploadCurrentFileName(images[0]?.modelNumber || 'Image 1');
+    setUploadStepText(rootHandle ? 'ফোল্ডারে ছবিগুলো সেভ করা শুরু হচ্ছে...' : 'ZIP ফাইলে ছবিগুলো প্রস্তুত করা হচ্ছে...');
     setBatchProgress({ current: 0, total: images.length });
+
+    const startTime = Date.now();
+    const total = images.length;
 
     try {
       if (rootHandle) {
@@ -1312,9 +1346,21 @@ export default function BoostAdsModule() {
         const folderHandle = await rootHandle.getDirectoryHandle(showroomFolderName, { create: true });
         const offscreenCanvas = document.createElement('canvas');
 
-        for (let i = 0; i < images.length; i++) {
+        for (let i = 0; i < total; i++) {
           const item = images[i];
-          setBatchProgress({ current: i + 1, total: images.length });
+          const done = i + 1;
+          const remaining = total - done;
+          const elapsedSec = (Date.now() - startTime) / 1000;
+          const avgPerItem = elapsedSec / done;
+          const estLeft = Math.max(0, Math.round(remaining * avgPerItem));
+
+          setUploadProcessed(done);
+          setUploadRemaining(remaining);
+          setUploadEstimatedSec(estLeft);
+          setUploadCurrentFileName(item.modelNumber || `Item_${done}`);
+          setUploadProgress(Math.min(95, Math.round((done / total) * 90)));
+          setUploadStepText(`ফোল্ডারে সেভ হচ্ছে (${done}/${total})`);
+          setBatchProgress({ current: done, total });
 
           await renderAdCanvas(offscreenCanvas, item, activeShowroom, {
             ...canvasOptions,
@@ -1336,9 +1382,22 @@ export default function BoostAdsModule() {
             await writable.write(blob);
             await writable.close();
           }
+
+          if (i % 2 === 0 || i === total - 1) {
+            await new Promise(r => setTimeout(r, 16));
+          }
         }
 
-        alert(`সফলভাবে "${activeShowroom.name}" ফোল্ডারে ${images.length}টি ছবি সেভ হয়েছে!`);
+        setUploadProgress(100);
+        setUploadStepText('সবগুলো ছবি সফলভাবে সেভ হয়েছে!');
+        await new Promise(r => setTimeout(r, 400));
+
+        showDialog({
+          type: 'success',
+          title: 'ডাউনলোড সফল হয়েছে',
+          message: `সফলভাবে "${activeShowroom.name}" ফোল্ডারে ${images.length}টি ছবি সেভ হয়েছে!`,
+          confirmText: 'ঠিক আছে'
+        });
       } else {
         // Fallback for network IP (e.g. http://192.168... where Chrome locks showDirectoryPicker)
         // Or if directory picker is not supported:
@@ -1347,9 +1406,21 @@ export default function BoostAdsModule() {
         const showroomFolder = zip.folder(showroomFolderName) || zip;
         const offscreenCanvas = document.createElement('canvas');
 
-        for (let i = 0; i < images.length; i++) {
+        for (let i = 0; i < total; i++) {
           const item = images[i];
-          setBatchProgress({ current: i + 1, total: images.length });
+          const done = i + 1;
+          const remaining = total - done;
+          const elapsedSec = (Date.now() - startTime) / 1000;
+          const avgPerItem = elapsedSec / done;
+          const estLeft = Math.max(0, Math.round(remaining * avgPerItem));
+
+          setUploadProcessed(done);
+          setUploadRemaining(remaining);
+          setUploadEstimatedSec(estLeft);
+          setUploadCurrentFileName(item.modelNumber || `Item_${done}`);
+          setUploadProgress(Math.min(92, Math.round((done / total) * 90)));
+          setUploadStepText(`ZIP ফাইলে যুক্ত হচ্ছে (${done}/${total})`);
+          setBatchProgress({ current: done, total });
 
           await renderAdCanvas(offscreenCanvas, item, activeShowroom, {
             ...canvasOptions,
@@ -1367,9 +1438,17 @@ export default function BoostAdsModule() {
             const cleanModel = (item.modelNumber || `Item_${i + 1}`).trim().replace(/[/\\?%*:|"<>]/g, '-');
             showroomFolder.file(`${cleanModel}.jpg`, blob);
           }
+
+          if (i % 2 === 0 || i === total - 1) {
+            await new Promise(r => setTimeout(r, 16));
+          }
         }
 
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        setUploadStepText('ZIP ফাইল সংকুচিত করা হচ্ছে, একটু অপেক্ষা করুন...');
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (meta) => {
+          setUploadProgress(Math.min(99, 92 + Math.round(meta.percent * 0.07)));
+        });
+
         const downloadUrl = URL.createObjectURL(zipBlob);
         const link = document.createElement('a');
         link.href = downloadUrl;
@@ -1378,12 +1457,22 @@ export default function BoostAdsModule() {
         link.click();
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+
+        setUploadProgress(100);
+        setUploadStepText('ZIP ফাইল সফলভাবে ডাউনলোড হয়েছে!');
+        await new Promise(r => setTimeout(r, 400));
       }
     } catch (err) {
       console.error('Bulk folder export error:', err);
-      alert('ছবিগুলো সেভ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      showDialog({
+        type: 'error',
+        title: 'ছবি সেভ করতে সমস্যা হয়েছে',
+        message: 'ছবিগুলো সেভ করার সময় একটি ত্রুটি ঘটেছে। অনুগ্রহ করে আবার চেষ্টা করুন।',
+        confirmText: 'ঠিক আছে'
+      });
     } finally {
       setIsProcessing(false);
+      setIsExporting(false);
       setBatchProgress(null);
     }
   };
@@ -1593,9 +1682,9 @@ export default function BoostAdsModule() {
 
       {/* Dynamic Image Import & Arranging Animation Overlay */}
       <ImageProcessingOverlay
-        isVisible={isProcessing && !batchProgress}
-        title="বুস্ট অ্যাডসের ছবিগুলো প্রস্তুত করা হচ্ছে..."
-        subtitle={uploadStepText || "মডেল নম্বর, বিক্রয় মূল্য ও কাটা দাম স্বয়ংক্রিয়ভাবে সাজানো হচ্ছে"}
+        isVisible={isProcessing || isExporting}
+        title={isExporting ? 'বুস্ট অ্যাডসের ছবিগুলো সেভ করা হচ্ছে...' : 'বুস্ট অ্যাডসের ছবিগুলো প্রস্তুত করা হচ্ছে...'}
+        subtitle={isExporting ? (uploadStepText || 'উচ্চ রেজোলিউশনে ছবি প্রস্তুত ও সংরক্ষণ করা হচ্ছে') : (uploadStepText || 'মডেল নম্বর, বিক্রয় মূল্য ও কাটা দাম স্বয়ংক্রিয়ভাবে সাজানো হচ্ছে')}
         progress={uploadProgress}
         totalImages={uploadTotal || images.length}
         processedCount={uploadProcessed}

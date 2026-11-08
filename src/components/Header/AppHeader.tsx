@@ -1,26 +1,20 @@
 import { useState, useEffect } from 'react';
-import { 
-  Maximize2, Minimize2, Keyboard, Sparkles, X, BadgeCheck, 
-  Command, Cloud 
-} from 'lucide-react';
+import { Maximize2, Minimize2, BadgeCheck, Cloud } from 'lucide-react';
 import type { AppModuleType } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 
 interface AppHeaderProps {
-  onOpenShortcuts?: () => void;
   currentModule?: AppModuleType;
   onSelectModule?: (module: AppModuleType) => void;
   onOpenAuthModal?: () => void;
 }
 
 export default function AppHeader({ 
-  onOpenShortcuts, 
   currentModule = 'hub', 
   onSelectModule,
 }: AppHeaderProps) {
   const { user } = useAuth();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   // Track Fullscreen state
   useEffect(() => {
@@ -42,17 +36,8 @@ export default function AppHeader({
     }
   };
 
-  const handleShortcutClick = () => {
-    if (onOpenShortcuts) {
-      onOpenShortcuts();
-    } else {
-      setShowShortcutsModal(true);
-    }
-  };
-
   return (
-    <>
-      <header className="relative z-40 bg-white/90 backdrop-blur-xl border-b border-gray-200/80 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+    <header className="relative z-40 bg-white/90 backdrop-blur-xl border-b border-gray-200/80 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="w-full px-3 sm:px-6 py-2 flex items-center justify-between gap-3">
           
           {/* LEFT: Branding */}
@@ -125,20 +110,6 @@ export default function AppHeader({
               )}
             </button>
 
-            {/* Keyboard Shortcuts Trigger Button - Desktop & Tablet */}
-            <button
-              type="button"
-              onClick={handleShortcutClick}
-              className="hidden md:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gray-100/80 hover:bg-gray-200/70 text-gray-700 hover:text-gray-900 border border-gray-200/80 text-xs font-semibold shadow-2xs transition-all active:scale-95 cursor-pointer"
-              title="কিবোর্ড শর্টকাট দেখুন (Ctrl+/)"
-            >
-              <Keyboard className="w-3.5 h-3.5 text-gray-500" />
-              <span className="hidden lg:inline">শর্টকাট</span>
-              <kbd className="hidden xl:inline-flex items-center gap-0.5 px-1 py-0.2 bg-white rounded text-[10px] font-mono text-gray-400 border border-gray-200">
-                <Command className="w-2.5 h-2.5" />/
-              </kbd>
-            </button>
-
             {/* Fullscreen Toggle Button - Tablet & Desktop */}
             <button
               type="button"
@@ -153,119 +124,47 @@ export default function AppHeader({
               )}
             </button>
 
-            {/* Muhammad Al-amin - Pro Developer Pill */}
+            {/* Muhammad Al-amin - Pro Developer Card */}
             <a
               href="https://mdalamin.web.app/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-white hover:bg-gray-50 p-1 sm:pr-3 rounded-full border border-gray-200/90 shadow-2xs transition-all hover:shadow-xs group shrink-0"
+              className="flex items-center gap-2.5 bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-2xl border border-gray-200/80 hover:border-blue-400/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,113,227,0.12)] transition-all duration-200 group shrink-0 active:scale-[0.98]"
               title="মুহাম্মদ আল-আলামিনের পোর্টফোলিও দেখুন"
             >
-              <div className="relative w-7 h-7 rounded-full overflow-hidden border border-gray-200 shadow-inner shrink-0">
-                <img src="/alamin.png" alt="Muhammad Al-amin" className="w-full h-full object-cover rounded-full" />
-                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+              {/* High-Clarity Squircle Avatar with Pro Gradient Ring */}
+              <div className="relative w-9 h-9 p-[1.5px] rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-sky-400 shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <div className="w-full h-full rounded-[10px] overflow-hidden bg-white">
+                  <img 
+                    src="/alamin.png" 
+                    alt="Muhammad Al-amin" 
+                    className="w-full h-full object-cover object-top select-none"
+                    style={{ imageRendering: '-webkit-optimize-contrast' }}
+                    loading="eager"
+                  />
+                </div>
+                {/* Active Status Beacon */}
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white shadow-xs" />
               </div>
 
-              <div className="hidden sm:flex flex-col text-left">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-bold text-gray-800 leading-tight group-hover:text-blue-600 transition-colors">
+              {/* Developer Info */}
+              <div className="hidden sm:flex flex-col text-left justify-center">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-[13px] font-bold text-gray-900 leading-tight group-hover:text-blue-600 transition-colors tracking-tight">
                     মুহাম্মদ আল-আলামিন
                   </span>
-                  <BadgeCheck className="w-3.5 h-3.5 text-blue-500 fill-blue-50" />
+                  <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-50 shrink-0" />
                 </div>
-                <span className="text-[10px] text-gray-400 font-medium leading-tight">
-                  Lead Developer
-                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] font-semibold text-gray-400 group-hover:text-gray-500 leading-none">
+                    Lead Developer
+                  </span>
+                </div>
               </div>
             </a>
           </div>
 
         </div>
       </header>
-
-      {/* Keyboard Shortcuts Modal */}
-      {showShortcutsModal && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setShowShortcutsModal(false)}
-        >
-          <div 
-            className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-gray-200/80 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">কিবোর্ড শর্টকাট গাইড</h3>
-                  <p className="text-[11px] text-gray-400 font-medium">কাজের গতি দ্বিগুণ করার দরকারি কমান্ড</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowShortcutsModal(false)}
-                className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="font-medium text-gray-700">পূর্বাবস্থায় ফেরা (Undo)</span>
-                <kbd className="px-2 py-1 bg-white rounded-lg border border-gray-200 font-mono text-[11px] font-bold text-gray-800 shadow-sm">
-                  Ctrl + Z
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="font-medium text-gray-700">পুনরায় করা (Redo)</span>
-                <kbd className="px-2 py-1 bg-white rounded-lg border border-gray-200 font-mono text-[11px] font-bold text-gray-800 shadow-sm">
-                  Ctrl + Y
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="font-medium text-gray-700">১ পিক্সেল নিখুঁত স্থানান্তর</span>
-                <kbd className="px-2 py-1 bg-white rounded-lg border border-gray-200 font-mono text-[11px] font-bold text-gray-800 shadow-sm">
-                  ↑ / ↓ / ← / →
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="font-medium text-gray-700">১০ পিক্সেল দ্রুত স্থানান্তর</span>
-                <kbd className="px-2 py-1 bg-white rounded-lg border border-gray-200 font-mono text-[11px] font-bold text-gray-800 shadow-sm">
-                  Shift + Arrows
-                </kbd>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="font-medium text-gray-700">ক্যানভাস জুম ইন / আউট</span>
-                <span className="px-2 py-1 bg-white rounded-lg border border-gray-200 font-semibold text-[11px] text-gray-600 shadow-sm">
-                  মাউস স্ক্রল হুইল
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="font-medium text-gray-700">অটো ইন্সপেক্ট ও এডিট</span>
-                <span className="px-2 py-1 bg-white rounded-lg border border-gray-200 font-semibold text-[11px] text-gray-600 shadow-sm">
-                  ক্যানভাসে সরাসরি ক্লিক
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setShowShortcutsModal(false)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl shadow-md transition-all active:scale-98"
-              >
-                ঠিক আছে, বুঝেছি
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
   );
 }

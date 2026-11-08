@@ -5,6 +5,7 @@ import {
   LogOut, ArrowLeft, RefreshCw, Sparkles, Layers
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { 
   loadShowrooms, 
   saveCustomShowroom, 
@@ -21,6 +22,7 @@ interface ProfileModuleProps {
 
 export const ProfileModule: React.FC<ProfileModuleProps> = ({ onBackToStudio }) => {
   const { user, signInWithGoogle, signOutUser } = useAuth();
+  const { showDialog, confirmDialog } = useDialog();
   const [showrooms, setShowrooms] = useState<ShowroomItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -101,14 +103,25 @@ export const ProfileModule: React.FC<ProfileModuleProps> = ({ onBackToStudio }) 
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err) {
       console.error('Failed to save showroom:', err);
-      alert('শোরুম সেভ করতে সমস্যা হয়েছে');
+      showDialog({
+        type: 'error',
+        title: 'শোরুম সেভ ব্যর্থ',
+        message: 'শোরুম সেভ করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।'
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('আপনি কি নিশ্চিতভাবে এই শোরুমটি মুছে ফেলতে চান?')) {
+    const confirmed = await confirmDialog({
+      type: 'warning',
+      title: 'শোরুম মুছে ফেলুন',
+      message: 'আপনি কি নিশ্চিতভাবে এই শোরুমটি মুছে ফেলতে চান?',
+      confirmText: 'হ্যাঁ, মুছুন',
+      cancelText: 'বাতিল'
+    });
+    if (confirmed) {
       try {
         await deleteCustomShowroom(id, user?.uid);
         if (editingId === id) resetForm();

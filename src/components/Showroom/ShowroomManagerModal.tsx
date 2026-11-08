@@ -4,6 +4,7 @@ import {
   Cloud, HardDrive, Phone, Image as ImageIcon, CheckCircle2 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useDialog } from '../../context/DialogContext';
 import { 
   saveCustomShowroom, 
   updateCustomShowroom, 
@@ -30,6 +31,7 @@ export const ShowroomManagerModal: React.FC<ShowroomManagerModalProps> = ({
   onShowroomsUpdated
 }) => {
   const { user, isConfigured } = useAuth();
+  const { showDialog, confirmDialog } = useDialog();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [numbers, setNumbers] = useState('');
@@ -91,7 +93,11 @@ export const ShowroomManagerModal: React.FC<ShowroomManagerModalProps> = ({
       onShowroomsUpdated();
     } catch (err) {
       console.error('Failed to save showroom:', err);
-      alert('শোরুম সেভ করতে সমস্যা হয়েছে');
+      showDialog({
+        type: 'error',
+        title: 'শোরুম সেভ ব্যর্থ',
+        message: 'শোরুম সেভ করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -99,7 +105,14 @@ export const ShowroomManagerModal: React.FC<ShowroomManagerModalProps> = ({
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('আপনি কি নিশ্চিতভাবে এই শোরুমটি মুছে ফেলতে চান?')) {
+    const confirmed = await confirmDialog({
+      type: 'warning',
+      title: 'শোরুম মুছে ফেলুন',
+      message: 'আপনি কি নিশ্চিতভাবে এই শোরুমটি মুছে ফেলতে চান?',
+      confirmText: 'হ্যাঁ, মুছুন',
+      cancelText: 'বাতিল'
+    });
+    if (confirmed) {
       try {
         await deleteCustomShowroom(id, user?.uid);
         if (editingId === id) resetForm();

@@ -5,6 +5,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { User } from 'firebase/auth';
 import { db, storage, isFirebaseConfigured } from './firebase';
+import { triggerInAppDialog } from '../context/DialogContext';
 import { SHOWROOMS, type ShowroomItem } from '../types';
 import { uploadToCloudinary, isCloudinaryConfigured } from './cloudinaryService';
 
@@ -226,7 +227,12 @@ export const saveCustomShowroom = async (
     } catch (err: any) {
       console.error('Firestore save failed (Check Firebase Console Security Rules):', err);
       if (err?.code === 'permission-denied') {
-        alert('ফায়ারবেস সিকিউরিটি রুলস পারমিশন না দেওয়ায় ক্লাউডে সেভ হয়নি। অনুগ্রহ করে Firebase Console-এ Rules আপডেট করুন।');
+        triggerInAppDialog({
+          type: 'warning',
+          title: 'ফায়ারবেস পারমিশন সতর্কবার্তা',
+          message: 'ফায়ারবেস সিকিউরিটি রুলস পারমিশন না দেওয়ায় ক্লাউডে সেভ হয়নি। অনুগ্রহ করে Firebase Console-এ Rules আপডেট করুন।',
+          confirmText: 'বুঝেছি'
+        });
       }
     }
   }

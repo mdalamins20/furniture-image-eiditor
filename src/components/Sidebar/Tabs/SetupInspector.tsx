@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Upload, SlidersHorizontal, RotateCcw, Store, Search, Check, Save, ChevronDown, X } from 'lucide-react';
 import { useEditorContext } from '../../../context/EditorContext';
+import { useDialog } from '../../../context/DialogContext';
 import type { ShowroomItem } from '../../../types';
 import { analyzeImageForEmptySpace } from '../../../utils/imageAnalyzer';
 
@@ -26,6 +27,8 @@ export default function SetupInspector() {
     updateSettingsBatch,
     recordSnapshot
   } = useEditorContext();
+
+  const { confirmDialog } = useDialog();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -153,8 +156,15 @@ export default function SetupInspector() {
         </div>
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm('আপনি কি সব সেটিংস ডিফল্ট অবস্থায় ফিরিয়ে নিতে চান?')) {
+          onClick={async () => {
+            const confirmed = await confirmDialog({
+              type: 'warning',
+              title: 'ডিফল্ট সেটিংস রিসেট',
+              message: 'আপনি কি নিশ্চিতভাবে সব সেটিংস ডিফল্ট অবস্থায় ফিরিয়ে নিতে চান?',
+              confirmText: 'হ্যাঁ, রিসেট করুন',
+              cancelText: 'বাতিল'
+            });
+            if (confirmed) {
               resetToDefaults();
             }
           }}

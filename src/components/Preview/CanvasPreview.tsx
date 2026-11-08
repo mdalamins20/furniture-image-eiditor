@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Download, ChevronLeft, ChevronRight, Crop, Undo2, Redo2, Upload, Sparkles } from 'lucide-react';
+import { Download, ChevronLeft, ChevronRight, ChevronDown, Crop, Undo2, Redo2, Upload, Sparkles } from 'lucide-react';
 import { useEditorContext } from '../../context/EditorContext';
 import CropModal from './CropModal';
 import ImageProcessingOverlay from '../Common/ImageProcessingOverlay';
+import InAppDialog from '../Common/InAppDialog';
+import JSZip from 'jszip';
 import type { ImageSetting } from '../../types';
 import { SHOWROOMS } from '../../types';
 
@@ -36,8 +38,26 @@ export default function CanvasPreview() {
   const [exportEstimatedSeconds, setExportEstimatedSeconds] = useState(0);
   const [exportCurrentFile, setExportCurrentFile] = useState('');
   const [exportStepText, setExportStepText] = useState('');
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    type?: 'warning' | 'error' | 'success' | 'info' | 'folder';
+    title: string;
+    message: string;
+    secondaryMessage?: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    extraButtonText?: string;
+    onExtraButton?: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: ''
+  });
 
   const [downloadFormat, setDownloadFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
+  const [isFormatDropdownOpen, setIsFormatDropdownOpen] = useState(false);
   const [renderedWidth, setRenderedWidth] = useState(1000);
   const [localDragPos, setLocalDragPos] = useState<{ x: number, y: number } | null>(null);
   const dragPosRef = useRef<{ x: number, y: number } | null>(null);
@@ -226,7 +246,7 @@ export default function CanvasPreview() {
       assignedShowroom: selectedShowroom ? SHOWROOMS.find(s => s.name === selectedShowroom) : undefined
     };
   }, [
-    imageSettings, previewIndex, defaultLogoPos, defaultNumberPos, defaultWatermarkPos,
+    imageSettings[previewIndex], previewIndex, defaultLogoPos, defaultNumberPos, defaultWatermarkPos,
     logoUrl, logoSize, enableLogoShadow, logoShadowColor, logoShadowBlur, logoShadowIntensity,
     numberText, numberSize, fontFamily, letterSpacing, lineHeight, fontWeight, fontStyle,
     textDecoration, textTransform, padX, padY, customRadius, numberColor, numberBgColor,
@@ -314,6 +334,7 @@ export default function CanvasPreview() {
 
     if (e.key === '+' || e.key === '=' || e.key === '-') {
       e.preventDefault();
+      e.stopPropagation();
       recordSnapshot();
       const resizeStep = e.key === '-' ? (e.shiftKey ? -5 : -1) : (e.shiftKey ? 5 : 1);
 
@@ -333,6 +354,7 @@ export default function CanvasPreview() {
 
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
       e.preventDefault();
+      e.stopPropagation();
       recordSnapshot();
       const key = `${activeElement}Pos` as keyof ImageSetting;
       const currentPos = { ...(imageSettings[previewIndex][key] as { x: number, y: number }) };
@@ -355,6 +377,40 @@ export default function CanvasPreview() {
       if (activeElement === 'watermark') updateSetting('isWatermarkPosManual', true);
     }
   };
+
+  // Keyboard Arrow Navigation across all images when no overlay element is selected
+  useEffect(() => {
+    const handleGlobalArrowNav = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTextInput = target && (
+        (target.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'color', 'button'].includes((target as HTMLInputElement).type)) ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      );
+      if (isTextInput) return;
+
+      if (!activeElement && previewUrls.length > 1) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setPreviewIndex(prev => {
+            const nextIdx = Math.max(0, prev - 1);
+            setSelectedIndices(new Set([nextIdx]));
+            return nextIdx;
+          });
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setPreviewIndex(prev => {
+            const nextIdx = Math.min(previewUrls.length - 1, prev + 1);
+            setSelectedIndices(new Set([nextIdx]));
+            return nextIdx;
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalArrowNav);
+    return () => window.removeEventListener('keydown', handleGlobalArrowNav);
+  }, [activeElement, previewUrls.length, setPreviewIndex, setSelectedIndices]);
 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent, type: 'logo' | 'number' | 'watermark') => {
     e.preventDefault();
@@ -538,13 +594,18 @@ export default function CanvasPreview() {
     ctx.shadowColor = 'transparent';
   };
 
-  const downloadAll = async () => {
+  const downloadAll = async (forceZip = false) => {
     if (mainImages.length === 0) return;
 
     let dirHandle: any = null;
     let dateDirHandle: any = null;
 
-    if ('showDirectoryPicker' in window) {
+    const canUseDirectoryPicker = !forceZip && 
+      typeof window !== 'undefined' && 
+      window.isSecureContext && 
+      typeof (window as any).showDirectoryPicker === 'function';
+
+    if (canUseDirectoryPicker) {
       try {
         dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
         const today = new Date();
@@ -553,17 +614,32 @@ export default function CanvasPreview() {
       } catch (err: any) {
         if (err.name === 'AbortError') return;
         if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
-          alert('ব্রাউজারের সিকিউরিটির কারণে সরাসরি মূল "Downloads" বা "Desktop" ফোল্ডার সিলেক্ট করা যায় না।\n\nদয়া করে Downloads বা অন্য ড্রাইভের ভেতরে "নতুন একটি ফোল্ডার (New Folder)" তৈরি করে সেটি সিলেক্ট করুন।');
+          setDialogState({
+            isOpen: true,
+            type: 'folder',
+            title: 'ফোল্ডার নির্বাচন সংক্রান্ত নির্দেশনা',
+            message: 'ব্রাউজার সিকিউরিটির নিয়মে সরাসরি মূল "Downloads" বা "Desktop" ফোল্ডারে সেভ করার অনুমতি দেওয়া হয় না।',
+            secondaryMessage: 'দয়া করে Downloads বা অন্য যেকোনো ড্রাইভের (D:, E:) ভেতরে একটি "নতুন ফোল্ডার (New Folder)" তৈরি করে সেটি সিলেক্ট করুন, অথবা সরাসরি ZIP ফাইলে সব ছবি এক ক্লিকে ডাউনলোড করে নিন।',
+            confirmText: 'আবার ফোল্ডার বাছুন',
+            cancelText: 'বাতিল',
+            extraButtonText: 'ZIP ফাইলে ডাউনলোড',
+            onConfirm: () => {
+              setDialogState(prev => ({ ...prev, isOpen: false }));
+              setTimeout(() => downloadAll(false), 200);
+            },
+            onExtraButton: () => {
+              setDialogState(prev => ({ ...prev, isOpen: false }));
+              setTimeout(() => downloadAll(true), 200);
+            },
+            onCancel: () => setDialogState(prev => ({ ...prev, isOpen: false }))
+          });
           return;
         }
-        console.warn('Directory picker failed, falling back to traditional download', err);
+        console.warn('Directory picker failed, falling back to ZIP download', err);
       }
     }
 
-    if (!dateDirHandle && mainImages.length > 10) {
-      alert('একসাথে ১০টির বেশি ছবি সেভ করার জন্য ব্রাউজার সিকিউরিটি অনুযায়ী ফোল্ডার নির্বাচন করা আবশ্যক।\n\nদয়া করে আবার "ডাউনলোড করুন" বাটনে ক্লিক করে কম্পিউটারের একটি ফোল্ডার সিলেক্ট করুন।');
-      return;
-    }
+    const useZipMode = !dateDirHandle;
 
     setIsExporting(true);
     setExportProgress(1);
@@ -571,7 +647,7 @@ export default function CanvasPreview() {
     setExportRemaining(mainImages.length);
     setExportEstimatedSeconds(Math.max(1, Math.round(mainImages.length * 0.18)));
     setExportCurrentFile(mainImages[0]?.name || '');
-    setExportStepText('ছবিগুলো ফোল্ডারে সেভ করা শুরু হচ্ছে...');
+    setExportStepText(useZipMode ? 'ছবিগুলো ZIP ফোল্ডারে প্রস্তুত করা হচ্ছে...' : 'ছবিগুলো ফোল্ডারে সেভ করা শুরু হচ্ছে...');
 
     try {
       const canvas = canvasRef.current;
@@ -600,6 +676,10 @@ export default function CanvasPreview() {
         const showroom = (showrooms || []).find((s: any) => s.numbers.trim() === numberText.trim());
         if (showroom) globalShowroomName = showroom.name;
       }
+
+      const cleanShowroomFolder = globalShowroomName.replace(/[/\\?%*:|"<>]/g, '_').trim() || 'Furniture';
+      const zip = useZipMode ? new JSZip() : null;
+      const zipFolder = zip ? zip.folder(cleanShowroomFolder) || zip : null;
 
       const startTime = Date.now();
       const total = mainImages.length;
@@ -747,27 +827,17 @@ export default function CanvasPreview() {
           const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_').trim() || 'Furniture';
           const fileName = `${cleanName}_${i + 1}.${extension}`;
 
-          if (dateDirHandle) {
-            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, 0.95));
-            if (blob) {
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, 0.95));
+
+          if (blob) {
+            if (dateDirHandle) {
               const fileHandle = await dateDirHandle.getFileHandle(fileName, { create: true });
               const writable = await fileHandle.createWritable();
               await writable.write(blob);
               await writable.close();
+            } else if (zipFolder) {
+              zipFolder.file(fileName, blob);
             }
-          } else {
-            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, mimeType, 0.95));
-            if (blob) {
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = fileName;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              setTimeout(() => URL.revokeObjectURL(url), 1000);
-            }
-            await new Promise(r => setTimeout(r, 150));
           }
 
           // Release memory immediately
@@ -783,12 +853,12 @@ export default function CanvasPreview() {
         const avgPerItem = elapsedSec / done;
         const estLeft = Math.max(0, Math.round(remaining * avgPerItem));
 
-        setExportProgress(Math.min(100, Math.round((done / total) * 100)));
+        setExportProgress(Math.min(95, Math.round((done / total) * 90)));
         setExportProcessed(done);
         setExportRemaining(remaining);
         setExportEstimatedSeconds(estLeft);
         setExportCurrentFile(mainImages[i]?.name || `Image_${i + 1}`);
-        setExportStepText(`সেভ হচ্ছে (${done}/${total})`);
+        setExportStepText(useZipMode ? `ZIP ফাইলে যুক্ত হচ্ছে (${done}/${total})` : `ফোল্ডারে সেভ হচ্ছে (${done}/${total})`);
 
         // Yield to event loop every 2 images for smooth UI and GC
         if (i % 2 === 0 || i === total - 1) {
@@ -796,9 +866,33 @@ export default function CanvasPreview() {
         }
       }
 
+      if (zip) {
+        setExportStepText('ZIP ফাইল সংকুচিত করা হচ্ছে, একটু অপেক্ষা করুন...');
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (metadata) => {
+          setExportProgress(Math.min(99, 90 + Math.round(metadata.percent * 0.09)));
+        });
+
+        const downloadUrl = URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${cleanShowroomFolder}_${total}_Photos.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+      }
+
       setExportProgress(100);
-      setExportStepText('সবগুলো ছবি সফলভাবে সেভ হয়েছে!');
-      await new Promise(r => setTimeout(r, 500));
+      setExportStepText(useZipMode ? 'ZIP ফাইল সফলভাবে ডাউনলোড হয়েছে!' : 'সবগুলো ছবি ফোল্ডারে সফলভাবে সেভ হয়েছে!');
+      await new Promise(r => setTimeout(r, 600));
+    } catch (err: any) {
+      console.error('Export error:', err);
+      setDialogState({
+        isOpen: true,
+        type: 'error',
+        title: 'ছবি সেভ করতে সমস্যা হয়েছে',
+        message: 'দুঃখিত, ছবিগুলো সেভ করার সময় একটি ত্রুটি ঘটেছে। দয়া করে আবার চেষ্টা করুন।'
+      });
     } finally {
       setIsExporting(false);
     }
@@ -845,7 +939,7 @@ export default function CanvasPreview() {
         <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 shrink-0 relative z-10">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4 shrink-0 relative z-30">
           <div>
             <div className="flex items-center gap-3 mb-1">
               <div className="w-1.5 h-6 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(0,113,227,0.4)]" />
@@ -885,24 +979,69 @@ export default function CanvasPreview() {
               </button>
             </div>
 
-            <select
-              value={downloadFormat}
-              onChange={(e) => setDownloadFormat(e.target.value as 'jpeg' | 'png' | 'webp')}
-              className="px-3.5 py-2 bg-white/80 border border-gray-200/80 rounded-xl text-xs font-semibold text-gray-600 outline-none focus:ring-2 focus:ring-blue-400/50 shadow-xs cursor-pointer hover:bg-white hover:border-blue-300 transition-all backdrop-blur-sm"
-            >
-              <option value="jpeg">.JPG — সেরা মান</option>
-              <option value="png">.PNG — ট্রান্সপ্যারেন্ট</option>
-              <option value="webp">.WEBP — ছোট সাইজ</option>
-            </select>
-            <button
-              onClick={downloadAll}
-              disabled={isProcessing || isExporting || previewUrls.length === 0}
-              className="relative flex items-center justify-center gap-2 px-4.5 py-2 bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm rounded-xl transition-all shadow-[0_4px_14px_rgba(0,113,227,0.3)] hover:shadow-[0_6px_18px_rgba(0,113,227,0.45)] hover:-translate-y-0.5 hover:bg-blue-500 active:translate-y-0 overflow-hidden group whitespace-nowrap"
-            >
-              <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Download className="w-4 h-4 shrink-0" strokeWidth={2.5} />
-              {isExporting ? 'সেভ হচ্ছে...' : isProcessing ? 'প্রসেসিং...' : 'ডাউনলোড করুন'}
-            </button>
+            {/* Unified Split Download Button with Format Switcher */}
+            <div className="relative inline-flex items-stretch rounded-xl shadow-[0_4px_14px_rgba(0,113,227,0.3)] hover:shadow-[0_6px_18px_rgba(0,113,227,0.45)] transition-all">
+              {/* Main Download Button */}
+              <button
+                type="button"
+                onClick={() => downloadAll(false)}
+                disabled={isProcessing || isExporting || previewUrls.length === 0}
+                className="relative flex items-center justify-center gap-2 pl-4 pr-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm rounded-l-xl transition-all cursor-pointer select-none active:scale-[0.99] whitespace-nowrap"
+                title={`ছবি ডাউনলোড করুন (.${downloadFormat === 'jpeg' ? 'jpg' : downloadFormat})`}
+              >
+                <Download className="w-4 h-4 shrink-0" strokeWidth={2.5} />
+                <span>{isExporting ? 'সেভ হচ্ছে...' : isProcessing ? 'প্রসেসিং...' : 'ডাউনলোড করুন'}</span>
+                <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-white/20 rounded text-white/95 tracking-wider ml-0.5">
+                  {downloadFormat === 'jpeg' ? 'JPG' : downloadFormat.toUpperCase()}
+                </span>
+              </button>
+
+              {/* Vertical Divider */}
+              <div className="w-[1px] bg-blue-700/60 my-1.5 pointer-events-none" />
+
+              {/* Extension Dropdown Arrow */}
+              <button
+                type="button"
+                onClick={() => setIsFormatDropdownOpen(!isFormatDropdownOpen)}
+                disabled={isProcessing || isExporting || previewUrls.length === 0}
+                className="px-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-r-xl transition-all flex items-center justify-center cursor-pointer select-none"
+                title="ফরম্যাট পরিবর্তন করুন (JPG, PNG, WEBP)"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isFormatDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Format Dropdown Menu */}
+              {isFormatDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-[60]" 
+                    onClick={() => setIsFormatDropdownOpen(false)} 
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 w-28 bg-white border border-gray-200/90 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.18)] p-1 z-[70] flex flex-col gap-0.5 animate-in zoom-in-95 duration-150">
+                    {(['jpeg', 'png', 'webp'] as const).map((fmt) => (
+                      <button
+                        key={fmt}
+                        type="button"
+                        onClick={() => {
+                          setDownloadFormat(fmt);
+                          setIsFormatDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          downloadFormat === fmt
+                            ? 'bg-blue-50 text-blue-600 shadow-xs'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        <span>{fmt === 'jpeg' ? 'JPG' : fmt.toUpperCase()}</span>
+                        {downloadFormat === fmt && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -916,7 +1055,7 @@ export default function CanvasPreview() {
           {previewUrls.length > 0 && (
             <button
               onClick={() => setIsCropModalOpen(true)}
-              className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3.5 py-2 bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-xl shadow-md hover:bg-white hover:scale-105 hover:shadow-lg transition-all text-gray-700 hover:text-blue-600 font-semibold text-xs"
+              className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3.5 py-2 bg-white/90 backdrop-blur-md border border-gray-200/80 rounded-xl shadow-md hover:bg-white hover:scale-105 hover:shadow-lg transition-all text-gray-700 hover:text-blue-600 font-semibold text-xs cursor-pointer select-none"
             >
               <Crop className="w-3.5 h-3.5" />
               <span>ক্রপ করুন</span>
@@ -1297,6 +1436,9 @@ export default function CanvasPreview() {
         currentFileName={isExporting ? exportCurrentFile : currentProcessingFile}
         onSkip={isProcessing && !isExporting ? skipProcessing : undefined}
       />
+
+      {/* In-App Dialog */}
+      <InAppDialog {...dialogState} />
     </div>
   );
 }

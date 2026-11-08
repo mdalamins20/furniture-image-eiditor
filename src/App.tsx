@@ -6,6 +6,7 @@ import PhotoCardModule from './modules/photo-card/PhotoCardModule';
 import BoostAdsModule from './modules/boost-ads/BoostAdsModule';
 import ProfileModule from './modules/profile/ProfileModule';
 import { AuthProvider } from './context/AuthContext';
+import { DialogProvider } from './context/DialogContext';
 import { AuthModal } from './components/Auth/AuthModal';
 import { subscribeShowrooms } from './services/showroomService';
 import { SHOWROOMS, type ShowroomItem, type AppModuleType } from './types';
@@ -87,8 +88,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <DialogProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </DialogProvider>
   );
 }
