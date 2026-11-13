@@ -2,9 +2,8 @@ import {
   collection, doc, getDocs, setDoc, deleteDoc, 
   onSnapshot, query, orderBy, serverTimestamp 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { User } from 'firebase/auth';
-import { db, storage, isFirebaseConfigured } from './firebase';
+import { db, isFirebaseConfigured } from './firebase';
 import { triggerInAppDialog } from '../context/DialogContext';
 import { SHOWROOMS, type ShowroomItem } from '../types';
 import { uploadToCloudinary, isCloudinaryConfigured } from './cloudinaryService';
@@ -120,38 +119,25 @@ export const combineShowrooms = (customShowrooms: ShowroomItem[]): ShowroomItem[
 
 /**
  * Upload logo file: 100% Free Zero-Cost Cloud Strategy
- * 1. Cloudinary CDN (Instant, global CDN, 25GB free monthly bandwidth)
- * 2. Fallback: Browser compressed Base64 stored in Firestore (100% free forever)
+ * 1. Cloudinary CDN (Instant, global CDN, 25GB free monthly bandwidth, 6s strict timeout)
+ * 2. Guaranteed Fallback: Browser compressed Base64 stored in Firestore & LocalStorage (100% free, 0 CORS issues, instant)
  */
 export const uploadLogo = async (
   file: File, 
-  userId?: string | null
+  _userId?: string | null
 ): Promise<string> => {
-  // Strategy 1: Cloudinary CDN if configured
+  // Strategy 1: Cloudinary CDN if accessible
   if (isCloudinaryConfigured) {
     try {
       const cdnUrl = await uploadToCloudinary(file);
       if (cdnUrl) return cdnUrl;
     } catch (err) {
-      console.warn('Cloudinary upload failed, falling back to compressed base64:', err);
+      console.warn('Cloudinary upload skipped or timed out, falling back to compressed base64:', err);
     }
   }
 
-  // Strategy 2: Firebase Storage (if available)
-  if (isFirebaseConfigured && userId && storage) {
-    try {
-      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const storageRef = ref(storage, `users/${userId}/logos/${Date.now()}_${cleanFileName}`);
-      const snapshot = await uploadBytes(storageRef, file, {
-        contentType: file.type || 'image/png'
-      });
-      return await getDownloadURL(snapshot.ref);
-    } catch {
-      // Storage unavailable or Blaze required -> seamless fallback
-    }
-  }
-
-  // Strategy 3: Guaranteed 100% Free Compressed Base64 in Firestore / LocalStorage
+  // Strategy 2: Guaranteed 100% Free Compressed WebP/PNG Base64 in Firestore / LocalStorage
+  // Resizes to max 320x320, keeping size ~15-25KB. Works 100% offline, 0 CORS issues, instant save.
   return await fileToBase64(file);
 };
 
